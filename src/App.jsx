@@ -447,7 +447,7 @@ function WatchesPage({ prompts, settings, setSettings }) {
   }
 
   async function generateSingleJob(barcode) {
-  const API_URL = "https://syntax-studio-production.up.railway.app";
+  const API_URL = "https://syntax-studio-backend.up.railway.app";
 
   const targetJob = jobs.find((job) => job.barcode === barcode);
   if (!targetJob) return false;
