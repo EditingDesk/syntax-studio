@@ -1210,6 +1210,8 @@ function PlaceholderPage({ title }) {
 }
 
 export default function App() {
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [lightboxTitle, setLightboxTitle] = useState("");
   const [page, setPage] = useState("watches");
   const [prompts, setPrompts] = useState(defaultPrompts);
   const [settings, setSettings] = useState({
@@ -1260,13 +1262,13 @@ export default function App() {
           <main className="flex-1 space-y-6">
             <TopBar />
 
-            {page === "watches" && (
-              <WatchesPage
-              prompts={prompts}
-              settings={settings}
-              setSettings={setSettings}
-              setLightboxImage={setLightboxImage}
-              setLightboxTitle={setLightboxTitle}
+          {page === "watches" && (
+  <WatchesPage
+    prompts={prompts}
+    settings={settings}
+    setSettings={setSettings}
+    setLightboxImage={setLightboxImage}
+    setLightboxTitle={setLightboxTitle}
   />
 )}
 
