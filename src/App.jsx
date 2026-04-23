@@ -369,15 +369,23 @@ function downloadBase64Image(image, fileName) {
   downloadDataUrl(dataUrl, fileName);
 }
 
-function WatchesPage({ prompts, settings, setSettings }) {
-const [jobs, setJobs] = useState([]);
-const [invalidFiles, setInvalidFiles] = useState([]);
-const [isDragging, setIsDragging] = useState(false);
-const [queueState, setQueueState] = useState("idle");
-const [currentBarcode, setCurrentBarcode] = useState(null);
+function WatchesPage({
+  prompts,
+  settings,
+  setSettings,
+  setLightboxImage,
+  setLightboxTitle,
+}) {
+  const [jobs, setJobs] = useState([]);
+  const [invalidFiles, setInvalidFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
 
-const [lightboxImage, setLightboxImage] = useState(null);
-const [lightboxTitle, setLightboxTitle] = useState("");
+  const [queueState, setQueueState] = useState("idle");
+  const [currentBarcode, setCurrentBarcode] = useState(null);
+
+  const pauseRequestedRef = useRef(false);
+  const stopRequestedRef = useRef(false);
+  const queueRunningRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -1254,11 +1262,13 @@ export default function App() {
 
             {page === "watches" && (
               <WatchesPage
-                prompts={prompts}
-                settings={settings}
-                setSettings={setSettings}
-              />
-            )}
+              prompts={prompts}
+              settings={settings}
+              setSettings={setSettings}
+              setLightboxImage={setLightboxImage}
+              setLightboxTitle={setLightboxTitle}
+  />
+)}
 
             {page === "settings" && (
               <SettingsPage
