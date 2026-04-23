@@ -542,10 +542,23 @@ function WatchesPage({
 
     try {
       const formData = new FormData();
-      formData.append("barcode", barcode);
-      formData.append("model", settings.modelLabel);
-      formData.append("candidateCount", "1");
-      formData.append("prompts", JSON.stringify(prompts));
+formData.append("barcode", barcode);
+formData.append("model", settings.modelLabel);
+formData.append("candidateCount", "1");
+formData.append("prompts", JSON.stringify(prompts));
+
+formData.append(
+  "processing",
+  JSON.stringify({
+    outputWidth: settings.outputWidth,
+    outputHeight: settings.outputHeight,
+    fitMode: settings.fitMode,
+    backgroundColor: settings.backgroundColor,
+    gravity: settings.gravity,
+    sharpen: settings.sharpen,
+    upscaleEnabled: settings.upscaleEnabled,
+  })
+);
 
       availableShots.forEach((shot) => {
         const asset = targetJob.shots[shot];
@@ -1226,42 +1239,199 @@ function SettingsPage({ prompts, setPrompts, settings, saveSettings, setSettings
         </div>
       </Card>
 
-      <Card title="Generation Defaults" className="col-span-4">
-        <div className="space-y-4">
-          <div className="rounded-[22px] bg-sky-50 p-4">
-            <div className="text-sm font-bold text-sky-700">Model label</div>
-            <input
-              value={settings.modelLabel}
-              onChange={(e) =>
-                setSettings((prev) => ({ ...prev, modelLabel: e.target.value }))
-              }
-              className="w-full mt-2 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none"
-            />
-          </div>
+      <div className="col-span-4 space-y-6">
+        <Card title="Generation Defaults">
+          <div className="space-y-4">
+            <div className="rounded-[22px] bg-sky-50 p-4">
+              <label className="block text-sm font-bold text-sky-700">Model label</label>
+              <input
+                value={settings.modelLabel}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, modelLabel: e.target.value }))
+                }
+                className="w-full mt-2 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none"
+              />
+            </div>
 
-          <div className="rounded-[22px] bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Default output</div>
-            <div className="font-bold text-slate-900 mt-1">
-              {settings.candidateCount} candidates per shot
+            <div className="rounded-[22px] bg-slate-50 p-4">
+              <div className="text-sm text-slate-500 mb-2">Candidate count</div>
+              <div className="flex rounded-full overflow-hidden border border-slate-200 w-fit">
+                {[1].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setSettings((prev) => ({ ...prev, candidateCount: n }))}
+                    className={`px-4 py-2 text-sm font-semibold ${
+                      settings.candidateCount === n
+                        ? "bg-pink-400 text-white"
+                        : "bg-white text-slate-700"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[22px] bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Filename contract</div>
+              <div className="font-bold text-slate-900 mt-1">
+                barcode_front.jpg / 258888511_raw_front.jpg
+              </div>
             </div>
           </div>
+        </Card>
 
-          <div className="rounded-[22px] bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Filename contract</div>
-            <div className="font-bold text-slate-900 mt-1">
-              barcode_front.jpg / 258888511_raw_front.jpg
+        <Card title="Output Processing Settings">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <label className="block text-sm font-bold text-slate-700">Output Width</label>
+                <input
+                  type="number"
+                  value={settings.outputWidth}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      outputWidth: Number(e.target.value) || 0,
+                    }))
+                  }
+                  className="w-full mt-2 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                />
+              </div>
+
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <label className="block text-sm font-bold text-slate-700">Output Height</label>
+                <input
+                  type="number"
+                  value={settings.outputHeight}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      outputHeight: Number(e.target.value) || 0,
+                    }))
+                  }
+                  className="w-full mt-2 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                />
+              </div>
             </div>
-          </div>
 
-          <button
-            onClick={saveSettings}
-            className="w-full rounded-full py-4 bg-yellow-300 text-slate-950 font-semibold inline-flex items-center justify-center gap-2"
-          >
-            <Save className="h-4 w-4" />
-            Save settings
-          </button>
-        </div>
-      </Card>
+            <div className="rounded-[18px] bg-slate-50 p-4">
+              <label className="block text-sm font-bold text-slate-700">Fit Mode</label>
+              <select
+                value={settings.fitMode}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, fitMode: e.target.value }))
+                }
+                className="w-full mt-2 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+              >
+                <option value="contain">contain</option>
+                <option value="cover">cover</option>
+                <option value="fill">fill</option>
+                <option value="inside">inside</option>
+                <option value="outside">outside</option>
+              </select>
+            </div>
+
+            <div className="rounded-[18px] bg-slate-50 p-4">
+              <label className="block text-sm font-bold text-slate-700">Background Color</label>
+              <div className="flex items-center gap-3 mt-2">
+                <input
+                  type="color"
+                  value={settings.backgroundColor}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      backgroundColor: e.target.value,
+                    }))
+                  }
+                  className="h-11 w-16 rounded border border-slate-200 bg-white"
+                />
+                <input
+                  type="text"
+                  value={settings.backgroundColor}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      backgroundColor: e.target.value,
+                    }))
+                  }
+                  className="flex-1 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[18px] bg-slate-50 p-4">
+              <label className="block text-sm font-bold text-slate-700">Gravity</label>
+              <select
+                value={settings.gravity}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, gravity: e.target.value }))
+                }
+                className="w-full mt-2 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+              >
+                <option value="center">center</option>
+                <option value="north">north</option>
+                <option value="south">south</option>
+                <option value="east">east</option>
+                <option value="west">west</option>
+                <option value="northeast">northeast</option>
+                <option value="northwest">northwest</option>
+                <option value="southeast">southeast</option>
+                <option value="southwest">southwest</option>
+              </select>
+            </div>
+
+            <div className="rounded-[18px] bg-slate-50 p-4">
+              <label className="block text-sm font-bold text-slate-700">Sharpen</label>
+              <select
+                value={settings.sharpen}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, sharpen: e.target.value }))
+                }
+                className="w-full mt-2 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+              >
+                <option value="off">off</option>
+                <option value="light">light</option>
+                <option value="medium">medium</option>
+                <option value="strong">strong</option>
+              </select>
+            </div>
+
+            <div className="rounded-[18px] bg-slate-50 p-4 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-bold text-slate-700">Upscale</div>
+                <div className="text-xs text-slate-500 mt-1">Off by default</div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    upscaleEnabled: !prev.upscaleEnabled,
+                  }))
+                }
+                className={`relative w-14 h-8 rounded-full transition ${
+                  settings.upscaleEnabled ? "bg-emerald-500" : "bg-slate-300"
+                }`}
+              >
+                <span
+                  className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+                    settings.upscaleEnabled ? "left-7" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <button
+              onClick={saveSettings}
+              className="w-full rounded-full py-4 bg-yellow-300 text-slate-950 font-semibold inline-flex items-center justify-center gap-2"
+            >
+              <Save className="h-4 w-4" />
+              Save settings
+            </button>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -1282,9 +1452,16 @@ export default function App() {
   const [page, setPage] = useState("watches");
   const [prompts, setPrompts] = useState(defaultPrompts);
   const [settings, setSettings] = useState({
-    candidateCount: 1,
-    modelLabel: "gemini-3.1-flash-image-preview",
-  });
+  candidateCount: 1,
+  modelLabel: "gemini-3.1-flash-image-preview",
+  outputWidth: 1644,
+  outputHeight: 2464,
+  fitMode: "contain",
+  backgroundColor: "#f1f1f1",
+  gravity: "center",
+  sharpen: "light",
+  upscaleEnabled: false,
+});
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
