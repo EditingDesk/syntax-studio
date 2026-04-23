@@ -406,10 +406,20 @@ function WatchesPage({
     [jobs]
   );
 
+  function getAvailableShots(job) {
+    return ["front", "angle", "side", "back", "box"].filter(
+      (shot) => job.shots[shot]
+    );
+  }
+
+  function hasAtLeastOneShot(job) {
+    return getAvailableShots(job).length > 0;
+  }
+
   const queueCounts = useMemo(() => {
     const ready = jobs.filter(
       (job) =>
-        requiredShots.every((k) => job.shots[k]) &&
+        hasAtLeastOneShot(job) &&
         (job.status === "idle" || job.status === "queued")
     ).length;
 
@@ -420,6 +430,48 @@ function WatchesPage({
       failed: jobs.filter((job) => job.status === "error").length,
     };
   }, [jobs]);
+
+  function getLocalJobStatus(job) {
+    if (job.status === "error") {
+      return { ok: false, text: job.error || "Error", tone: "error" };
+    }
+
+    if (job.status === "generating") {
+      return { ok: false, text: `Generating ${job.progress}%`, tone: "info" };
+    }
+
+    if (job.status === "queued") {
+      return { ok: false, text: "Queued", tone: "info" };
+    }
+
+    if (job.status === "done") {
+      return { ok: true, text: "Completed", tone: "default" };
+    }
+
+    const availableShots = getAvailableShots(job);
+
+    if (availableShots.length === 0) {
+      return {
+        ok: false,
+        text: "No valid shot uploaded",
+        tone: "default",
+      };
+    }
+
+    if (availableShots.length < 5) {
+      return {
+        ok: true,
+        text: `Partial generate (${availableShots.length}/5 shots)`,
+        tone: "info",
+      };
+    }
+
+    return {
+      ok: true,
+      text: "Ready to generate",
+      tone: "default",
+    };
+  }
 
   function handleFiles(selectedFiles) {
     const list = Array.from(selectedFiles || []);
@@ -465,130 +517,129 @@ function WatchesPage({
   }
 
   async function generateSingleJob(barcode) {
-  const API_URL = "https://syntax-studio-backend.up.railway.app";
+    const API_URL = "https://syntax-studio-backend.up.railway.app";
 
-  const targetJob = jobs.find((job) => job.barcode === barcode);
-  if (!targetJob) return false;
+    const targetJob = jobs.find((job) => job.barcode === barcode);
+    if (!targetJob) return false;
 
-  const ready = requiredShots.every((k) => targetJob.shots[k]);
-  if (!ready) return false;
+    const availableShots = getAvailableShots(targetJob);
+    if (availableShots.length === 0) return false;
 
-  setCurrentBarcode(barcode);
+    setCurrentBarcode(barcode);
 
-  setJobs((prev) =>
-    prev.map((job) =>
-      job.barcode === barcode
-        ? {
-            ...job,
-            status: "generating",
-            progress: 5,
-            error: null,
-          }
-        : job
-    )
-  );
+    setJobs((prev) =>
+      prev.map((job) =>
+        job.barcode === barcode
+          ? {
+              ...job,
+              status: "generating",
+              progress: 5,
+              error: null,
+            }
+          : job
+      )
+    );
 
-  try {
-    // ✅ create formData FIRST
-    const formData = new FormData();
-    formData.append("barcode", barcode);
-    formData.append("model", settings.modelLabel);
-    formData.append("candidateCount", "1");
-    formData.append("prompts", JSON.stringify(prompts));
+    try {
+      const formData = new FormData();
+      formData.append("barcode", barcode);
+      formData.append("model", settings.modelLabel);
+      formData.append("candidateCount", "1");
+      formData.append("prompts", JSON.stringify(prompts));
 
-    ["front", "angle", "side", "back", "box"].forEach((shot) => {
-      const asset = targetJob.shots[shot];
-      if (asset?.file) {
-        formData.append(shot, asset.file, asset.name);
+      availableShots.forEach((shot) => {
+        const asset = targetJob.shots[shot];
+        if (asset?.file) {
+          formData.append(shot, asset.file, asset.name);
+        }
+      });
+
+      const response = await fetch(`${API_URL}/api/generate-watch-job`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Generation failed");
       }
-    });
 
-    // ✅ THEN call API
-    const response = await fetch(`${API_URL}/api/generate-watch-job`, {
-      method: "POST",
-      body: formData,
-    });
+      setJobs((prev) =>
+        prev.map((job) =>
+          job.barcode === barcode
+            ? {
+                ...job,
+                status: "done",
+                progress: 100,
+                error: null,
+                generatedResults: data.results,
+              }
+            : job
+        )
+      );
 
-    const data = await response.json();
+      return true;
+    } catch (error) {
+      setJobs((prev) =>
+        prev.map((job) =>
+          job.barcode === barcode
+            ? {
+                ...job,
+                status: "error",
+                error: error.message || "Generation failed",
+                progress: 0,
+              }
+            : job
+        )
+      );
 
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error || "Generation failed");
+      return false;
+    } finally {
+      setCurrentBarcode(null);
     }
-
-    setJobs((prev) =>
-      prev.map((job) =>
-        job.barcode === barcode
-          ? {
-              ...job,
-              status: "done",
-              progress: 100,
-              generatedResults: data.results,
-            }
-          : job
-      )
-    );
-
-    return true;
-  } catch (error) {
-    setJobs((prev) =>
-      prev.map((job) =>
-        job.barcode === barcode
-          ? {
-              ...job,
-              status: "error",
-              error: error.message,
-              progress: 0,
-            }
-          : job
-      )
-    );
-
-    return false;
-  } finally {
-    setCurrentBarcode(null);
   }
-}
 
   async function handleGenerate(barcode) {
     if (queueRunningRef.current) return;
     await generateSingleJob(barcode);
   }
-async function handleDownloadBestZip(job) {
-  if (!job.generatedResults) return;
 
-  const zip = new JSZip();
+  async function handleDownloadBestZip(job) {
+    if (!job.generatedResults) return;
 
-  Object.entries(job.generatedResults).forEach(([shot, result]) => {
-    const bestIndex = result.bestIndex ?? 0;
-    const bestCandidate = result.candidates?.[bestIndex];
+    const zip = new JSZip();
 
-    if (!bestCandidate?.image?.base64) return;
+    Object.entries(job.generatedResults).forEach(([shot, result]) => {
+      const bestIndex = result.bestIndex ?? 0;
+      const bestCandidate = result.candidates?.[bestIndex];
 
-    zip.file(
-      `${job.barcode}_${shot}_best.png`,
-      bestCandidate.image.base64,
-      { base64: true }
-    );
-  });
+      if (!bestCandidate?.image?.base64) return;
 
-  const blob = await zip.generateAsync({ type: "blob" });
-  const url = URL.createObjectURL(blob);
+      zip.file(`${job.barcode}_${shot}_best.png`, bestCandidate.image.base64, {
+        base64: true,
+      });
+    });
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${job.barcode}_best_images.zip`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
 
-  URL.revokeObjectURL(url);
-}
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${job.barcode}_best_images.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  }
+
   async function handleRunAll() {
     if (queueRunningRef.current) return;
 
     const readyJobs = jobs.filter(
       (job) =>
-        requiredShots.every((k) => job.shots[k]) &&
+        hasAtLeastOneShot(job) &&
         (job.status === "idle" || job.status === "queued" || job.status === "error")
     );
 
@@ -601,9 +652,10 @@ async function handleDownloadBestZip(job) {
 
     setJobs((prev) =>
       prev.map((job) => {
-        const ready = requiredShots.every((k) => job.shots[k]);
+        const ready = hasAtLeastOneShot(job);
         if (!ready) return job;
         if (job.status === "done") return job;
+
         return {
           ...job,
           status: "queued",
@@ -630,17 +682,11 @@ async function handleDownloadBestZip(job) {
         setQueueState("stopped");
         setJobs((prev) =>
           prev.map((job) =>
-          job.barcode === barcode
-          ? {
-          ...job,
-          status: "done",
-          progress: 100,
-          error: null,
-          generatedResults: data.results,
-             }
-          : job
+            job.status === "queued" || job.status === "generating"
+              ? { ...job, status: "idle", progress: 0, error: null }
+              : job
           )
-          );
+        );
       } else if (pauseRequestedRef.current) {
         setQueueState("paused");
       } else {
@@ -680,7 +726,7 @@ async function handleDownloadBestZip(job) {
 
   const canRunAll = jobs.some(
     (job) =>
-      requiredShots.every((k) => job.shots[k]) &&
+      hasAtLeastOneShot(job) &&
       (job.status === "idle" || job.status === "queued" || job.status === "error")
   );
 
@@ -875,8 +921,8 @@ async function handleDownloadBestZip(job) {
         ) : (
           <div className="space-y-4">
             {jobs.map((job) => {
-              const ready = requiredShots.every((k) => job.shots[k]);
-              const statusInfo = getJobStatus(job);
+              const ready = hasAtLeastOneShot(job);
+              const statusInfo = getLocalJobStatus(job);
 
               return (
                 <div
@@ -891,6 +937,11 @@ async function handleDownloadBestZip(job) {
                       <div className="text-sm text-slate-500">
                         Auto-detected from flexible filename pattern
                       </div>
+                      {getAvailableShots(job).length < 5 && getAvailableShots(job).length > 0 && (
+                        <div className="text-xs text-amber-600 font-semibold mt-1">
+                          Missing shots will be skipped. Only uploaded images will be generated.
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -932,117 +983,117 @@ async function handleDownloadBestZip(job) {
                   )}
 
                   <div className="grid grid-cols-6 gap-3">
-  {shotTypes.map((shot) => (
-    <ShotCard
-      key={shot}
-      shot={shot}
-      asset={job.shots[shot]}
-      onOpen={(src, title) => {
-        setLightboxImage(src);
-        setLightboxTitle(title);
-      }}
-    />
-  ))}
-</div>
+                    {shotTypes.map((shot) => (
+                      <ShotCard
+                        key={shot}
+                        shot={shot}
+                        asset={job.shots[shot]}
+                        onOpen={(src, title) => {
+                          setLightboxImage(src);
+                          setLightboxTitle(title);
+                        }}
+                      />
+                    ))}
+                  </div>
 
-{job.generatedResults && (
-  <div className="mt-5 space-y-4">
-    <div className="flex items-center justify-between">
-      <div className="text-lg font-black text-slate-950">
-        Generated Best Images
-      </div>
+                  {job.generatedResults && (
+                    <div className="mt-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-lg font-black text-slate-950">
+                          Generated Best Images
+                        </div>
 
-      <button
-        onClick={() => handleDownloadBestZip(job)}
-        className="rounded-full px-4 py-2 bg-slate-950 text-white text-sm font-semibold inline-flex items-center gap-2"
-      >
-        <Download className="h-4 w-4" />
-        Bulk Download Best
-      </button>
-    </div>
+                        <button
+                          onClick={() => handleDownloadBestZip(job)}
+                          className="rounded-full px-4 py-2 bg-slate-950 text-white text-sm font-semibold inline-flex items-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Bulk Download Best
+                        </button>
+                      </div>
 
-    <div className="grid grid-cols-6 gap-3">
-      {["front", "angle", "side", "back", "box", "model"].map((shot) => {
-        const result = job.generatedResults?.[shot];
-        const bestIndex = result?.bestIndex ?? 0;
-        const bestCandidate = result?.candidates?.[bestIndex];
+                      <div className="grid grid-cols-6 gap-3">
+                        {["front", "angle", "side", "back", "box", "model"].map((shot) => {
+                          const result = job.generatedResults?.[shot];
+                          const bestIndex = result?.bestIndex ?? 0;
+                          const bestCandidate = result?.candidates?.[bestIndex];
 
-        if (!bestCandidate) {
-          return (
-            <div
-              key={shot}
-              className="rounded-[18px] bg-white p-3 border border-slate-100 min-w-0"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="capitalize text-sm font-extrabold text-slate-900">
-                  {shot}
-                </div>
-                <AlertCircle className="h-5 w-5 text-slate-300" />
-              </div>
+                          if (!bestCandidate) {
+                            return (
+                              <div
+                                key={shot}
+                                className="rounded-[18px] bg-white p-3 border border-slate-100 min-w-0"
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="capitalize text-sm font-extrabold text-slate-900">
+                                    {shot}
+                                  </div>
+                                  <AlertCircle className="h-5 w-5 text-slate-300" />
+                                </div>
 
-              <div className="w-full aspect-[2/3] rounded-[16px] border border-slate-100 bg-slate-50 flex items-center justify-center">
-                <ImageIcon className="h-8 w-8 text-slate-400" />
-              </div>
+                                <div className="w-full aspect-[2/3] rounded-[16px] border border-slate-100 bg-slate-50 flex items-center justify-center">
+                                  <ImageIcon className="h-8 w-8 text-slate-400" />
+                                </div>
 
-              <div className="mt-2 text-[11px] text-slate-500">
-                No generated image
-              </div>
-            </div>
-          );
-        }
+                                <div className="mt-2 text-[11px] text-slate-500">
+                                  No generated image
+                                </div>
+                              </div>
+                            );
+                          }
 
-        const imageSrc = `data:${bestCandidate.image.mimeType};base64,${bestCandidate.image.base64}`;
+                          const imageSrc = `data:${bestCandidate.image.mimeType};base64,${bestCandidate.image.base64}`;
 
-        return (
-          <div
-            key={shot}
-            className="rounded-[18px] bg-white p-3 border border-slate-100 min-w-0"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="capitalize text-sm font-extrabold text-slate-900">
-                {shot}
-              </div>
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-            </div>
+                          return (
+                            <div
+                              key={shot}
+                              className="rounded-[18px] bg-white p-3 border border-slate-100 min-w-0"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="capitalize text-sm font-extrabold text-slate-900">
+                                  {shot}
+                                </div>
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                              </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setLightboxImage(imageSrc);
-                setLightboxTitle(`${job.barcode}_${shot}_best`);
-              }}
-              className="w-full cursor-zoom-in"
-            >
-              <div className="w-full aspect-[2/3] rounded-[16px] overflow-hidden border border-slate-100 bg-white">
-                <img
-                  src={imageSrc}
-                  alt={`${shot}-best`}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLightboxImage(imageSrc);
+                                  setLightboxTitle(`${job.barcode}_${shot}_best`);
+                                }}
+                                className="w-full cursor-zoom-in"
+                              >
+                                <div className="w-full aspect-[2/3] rounded-[16px] overflow-hidden border border-slate-100 bg-white">
+                                  <img
+                                    src={imageSrc}
+                                    alt={`${shot}-best`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              </button>
 
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-slate-500">Best</span>
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-slate-500">Best</span>
 
-              <button
-                onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = imageSrc;
-                  link.download = `${job.barcode}_${shot}_best.png`;
-                  link.click();
-                }}
-                className="text-xs text-blue-600 font-semibold"
-              >
-                Download
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-)}
+                                <button
+                                  onClick={() => {
+                                    const link = document.createElement("a");
+                                    link.href = imageSrc;
+                                    link.download = `${job.barcode}_${shot}_best.png`;
+                                    link.click();
+                                  }}
+                                  className="text-xs text-blue-600 font-semibold"
+                                >
+                                  Download
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1117,8 +1168,6 @@ async function handleDownloadBestZip(job) {
           </div>
         </div>
       </Card>
-
-   
 
       <Card title="Candidate Review" className="col-span-12">
         <div className="grid grid-cols-3 gap-3 mb-4">
