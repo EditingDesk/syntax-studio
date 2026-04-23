@@ -281,12 +281,12 @@ function StatusChip({ ok, text, tone = "default" }) {
   );
 }
 
-function ShotCard({ shot, asset }) {
+function ShotCard({ shot, asset, onOpen }) {
   const label = shot === "model" ? "Will be generated from front shot" : "Missing";
 
   return (
-    <div className="rounded-[22px] bg-white p-4 border border-slate-100">
-      <div className="flex items-center justify-between mb-3">
+    <div className="rounded-[18px] bg-white p-3 border border-slate-100 min-w-0">
+      <div className="flex items-center justify-between mb-2">
         <div className="capitalize text-sm font-extrabold text-slate-900">
           {shot}
         </div>
@@ -297,15 +297,27 @@ function ShotCard({ shot, asset }) {
         )}
       </div>
 
-      <div className="h-28 rounded-[18px] bg-gradient-to-br from-sky-50 to-slate-100 border border-slate-100 overflow-hidden flex items-center justify-center">
-        {asset ? (
-          <img src={asset.url} alt={asset.name} className="h-full w-full object-cover" />
-        ) : (
-          <ImageIcon className="h-8 w-8 text-slate-400" />
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={() => asset?.url && onOpen(asset.url, asset.name)}
+        className={`w-full rounded-[16px] border border-slate-100 overflow-hidden bg-gradient-to-br from-sky-50 to-slate-100 flex items-center justify-center ${
+          asset ? "cursor-zoom-in" : "cursor-default"
+        }`}
+      >
+        <div className="w-full aspect-[2/3] flex items-center justify-center overflow-hidden">
+          {asset ? (
+            <img
+              src={asset.url}
+              alt={asset.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ImageIcon className="h-8 w-8 text-slate-400" />
+          )}
+        </div>
+      </button>
 
-      <div className="mt-3 text-xs text-slate-500 break-all min-h-[34px]">
+      <div className="mt-2 text-[11px] text-slate-500 break-all min-h-[30px] line-clamp-2">
         {asset?.name || label}
       </div>
     </div>
@@ -368,6 +380,9 @@ function WatchesPage({ prompts, settings, setSettings }) {
   const pauseRequestedRef = useRef(false);
   const stopRequestedRef = useRef(false);
   const queueRunningRef = useRef(false);
+
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [lightboxTitle, setLightboxTitle] = useState("");
 
   useEffect(() => {
     return () => {
@@ -913,9 +928,17 @@ async function handleDownloadBestZip(job) {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-6 gap-3">
   {shotTypes.map((shot) => (
-    <ShotCard key={shot} shot={shot} asset={job.shots[shot]} />
+    <ShotCard
+      key={shot}
+      shot={shot}
+      asset={job.shots[shot]}
+      onOpen={(src, title) => {
+        setLightboxImage(src);
+        setLightboxTitle(title);
+      }}
+    />
   ))}
 </div>
 
@@ -949,65 +972,52 @@ async function handleDownloadBestZip(job) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
-          {result.candidates?.map((candidate, index) => {
-            const imageSrc = getImageSrc(candidate.image);
-            const isBest = index === (result.bestIndex ?? 0);
+       <div className="grid grid-cols-6 gap-3">
+  {result.candidates?.map((candidate, index) => {
+    const imageSrc = `data:${candidate.image.mimeType};base64,${candidate.image.base64}`;
 
-            return (
-              <div
-                key={index}
-                className={`rounded-[18px] p-3 border ${
-                  isBest
-                    ? "border-pink-300 bg-pink-50"
-                    : "border-slate-100 bg-slate-50"
-                }`}
-              >
-                <img
-                  src={imageSrc}
-                  alt={`${shot}-candidate-${index + 1}`}
-                  className="w-full h-40 object-cover rounded-[14px] border border-slate-100 bg-white"
-                />
+    return (
+      <div key={index} className="rounded-[16px] overflow-hidden border border-slate-100 bg-white">
+        
+        <button
+          type="button"
+          onClick={() => {
+            setLightboxImage(imageSrc);
+            setLightboxTitle(`${job.barcode}_${shot}_candidate_${index + 1}`);
+          }}
+          className="w-full cursor-zoom-in"
+        >
+          <div className="w-full aspect-[2/3]">
+            <img
+              src={imageSrc}
+              alt={`${shot}-candidate-${index + 1}`}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </button>
 
-                <div className="mt-2 text-sm font-bold text-slate-900">
-                  Candidate {index + 1}
-                </div>
+        <div className="p-2 flex items-center justify-between">
+          <span className="text-xs text-slate-500">
+            Candidate {index + 1}
+          </span>
 
-                <div className="text-xs text-slate-500 mb-2">
-                  Score: {candidate.score ?? 0}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() =>
-                      downloadBase64Image(
-                        candidate.image,
-                        `${job.barcode}_${shot}_candidate_${index + 1}.png`
-                      )
-                    }
-                    className="rounded-full px-3 py-2 bg-slate-900 text-white text-xs font-semibold"
-                  >
-                    Download
-                  </button>
-
-                  {isBest && (
-                    <button
-                      onClick={() =>
-                        downloadBase64Image(
-                          candidate.image,
-                          `${job.barcode}_${shot}_best.png`
-                        )
-                      }
-                      className="rounded-full px-3 py-2 bg-emerald-500 text-white text-xs font-semibold"
-                    >
-                      Download Best
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          <button
+            onClick={() => {
+              const link = document.createElement("a");
+              link.href = imageSrc;
+              link.download = `${job.barcode}_${shot}_candidate_${index + 1}.png`;
+              link.click();
+            }}
+            className="text-xs text-blue-600 font-semibold"
+          >
+            Download
+          </button>
         </div>
+
+      </div>
+    );
+  })}
+</div>
       </div>
     ))}
   </div>
@@ -1087,24 +1097,9 @@ async function handleDownloadBestZip(job) {
         </div>
       </Card>
 
-      <Card title="Prompt Summary" className="col-span-7">
-        <div className="grid grid-cols-2 gap-3">
-          {shotTypes.map((shot) => (
-            <div
-              key={shot}
-              className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4"
-            >
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <div className="capitalize font-extrabold text-slate-950">{shot}</div>
-                <span className="text-xs text-slate-500">Saved in settings</span>
-              </div>
-              <p className="text-sm text-slate-600">{prompts[shot]}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
+   
 
-      <Card title="Candidate Review" className="col-span-5">
+      <Card title="Candidate Review" className="col-span-12">
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[1, 2, 3].map((n) => (
             <div
@@ -1287,6 +1282,41 @@ export default function App() {
           </main>
         </div>
       </div>
+      {lightboxImage && (
+  <div
+    className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-6"
+    onClick={() => {
+      setLightboxImage(null);
+      setLightboxTitle("");
+    }}
+  >
+    <div
+      className="relative max-w-[90vw] max-h-[90vh] bg-white rounded-[24px] p-4 shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between gap-4 mb-3">
+        <div className="text-sm font-bold text-slate-900 break-all">
+          {lightboxTitle}
+        </div>
+        <button
+          onClick={() => {
+            setLightboxImage(null);
+            setLightboxTitle("");
+          }}
+          className="rounded-full px-3 py-1 bg-slate-100 text-slate-700 text-sm font-semibold"
+        >
+          Close
+        </button>
+      </div>
+
+      <img
+        src={lightboxImage}
+        alt={lightboxTitle}
+        className="max-w-[85vw] max-h-[80vh] object-contain rounded-[18px]"
+      />
+    </div>
+  </div>
+)}
     </div>
   );
 }
