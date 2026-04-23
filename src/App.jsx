@@ -949,7 +949,7 @@ async function handleDownloadBestZip(job) {
   <div className="mt-5 space-y-4">
     <div className="flex items-center justify-between">
       <div className="text-lg font-black text-slate-950">
-        Generated Candidates
+        Generated Best Images
       </div>
 
       <button
@@ -961,68 +961,86 @@ async function handleDownloadBestZip(job) {
       </button>
     </div>
 
-    {Object.entries(job.generatedResults).map(([shot, result]) => (
-      <div
-        key={shot}
-        className="rounded-[20px] bg-white border border-slate-100 p-4"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <div className="capitalize font-black text-slate-900">
-            {shot} candidates
-          </div>
-          <div className="text-sm text-slate-500">
-            Best: Candidate {(result.bestIndex ?? 0) + 1}
-          </div>
-        </div>
+    <div className="grid grid-cols-6 gap-3">
+      {["front", "angle", "side", "back", "box", "model"].map((shot) => {
+        const result = job.generatedResults?.[shot];
+        const bestIndex = result?.bestIndex ?? 0;
+        const bestCandidate = result?.candidates?.[bestIndex];
 
-       <div className="grid grid-cols-6 gap-3">
-  {result.candidates?.map((candidate, index) => {
-    const imageSrc = `data:${candidate.image.mimeType};base64,${candidate.image.base64}`;
+        if (!bestCandidate) {
+          return (
+            <div
+              key={shot}
+              className="rounded-[18px] bg-white p-3 border border-slate-100 min-w-0"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="capitalize text-sm font-extrabold text-slate-900">
+                  {shot}
+                </div>
+                <AlertCircle className="h-5 w-5 text-slate-300" />
+              </div>
 
-    return (
-      <div key={index} className="rounded-[16px] overflow-hidden border border-slate-100 bg-white">
-        
-        <button
-          type="button"
-          onClick={() => {
-            setLightboxImage(imageSrc);
-            setLightboxTitle(`${job.barcode}_${shot}_candidate_${index + 1}`);
-          }}
-          className="w-full cursor-zoom-in"
-        >
-          <div className="w-full aspect-[2/3]">
-            <img
-              src={imageSrc}
-              alt={`${shot}-candidate-${index + 1}`}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        </button>
+              <div className="w-full aspect-[2/3] rounded-[16px] border border-slate-100 bg-slate-50 flex items-center justify-center">
+                <ImageIcon className="h-8 w-8 text-slate-400" />
+              </div>
 
-        <div className="p-2 flex items-center justify-between">
-          <span className="text-xs text-slate-500">
-            Candidate {index + 1}
-          </span>
+              <div className="mt-2 text-[11px] text-slate-500">
+                No generated image
+              </div>
+            </div>
+          );
+        }
 
-          <button
-            onClick={() => {
-              const link = document.createElement("a");
-              link.href = imageSrc;
-              link.download = `${job.barcode}_${shot}_candidate_${index + 1}.png`;
-              link.click();
-            }}
-            className="text-xs text-blue-600 font-semibold"
+        const imageSrc = `data:${bestCandidate.image.mimeType};base64,${bestCandidate.image.base64}`;
+
+        return (
+          <div
+            key={shot}
+            className="rounded-[18px] bg-white p-3 border border-slate-100 min-w-0"
           >
-            Download
-          </button>
-        </div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="capitalize text-sm font-extrabold text-slate-900">
+                {shot}
+              </div>
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            </div>
 
-      </div>
-    );
-  })}
-</div>
-      </div>
-    ))}
+            <button
+              type="button"
+              onClick={() => {
+                setLightboxImage(imageSrc);
+                setLightboxTitle(`${job.barcode}_${shot}_best`);
+              }}
+              className="w-full cursor-zoom-in"
+            >
+              <div className="w-full aspect-[2/3] rounded-[16px] overflow-hidden border border-slate-100 bg-white">
+                <img
+                  src={imageSrc}
+                  alt={`${shot}-best`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </button>
+
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-500">Best</span>
+
+              <button
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = imageSrc;
+                  link.download = `${job.barcode}_${shot}_best.png`;
+                  link.click();
+                }}
+                className="text-xs text-blue-600 font-semibold"
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   </div>
 )}
                 </div>
