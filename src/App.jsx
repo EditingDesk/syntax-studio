@@ -370,19 +370,14 @@ function downloadBase64Image(image, fileName) {
 }
 
 function WatchesPage({ prompts, settings, setSettings }) {
-  const [jobs, setJobs] = useState([]);
-  const [invalidFiles, setInvalidFiles] = useState([]);
-  const [isDragging, setIsDragging] = useState(false);
+const [jobs, setJobs] = useState([]);
+const [invalidFiles, setInvalidFiles] = useState([]);
+const [isDragging, setIsDragging] = useState(false);
+const [queueState, setQueueState] = useState("idle");
+const [currentBarcode, setCurrentBarcode] = useState(null);
 
-  const [queueState, setQueueState] = useState("idle"); // idle | running | paused | stopped
-  const [currentBarcode, setCurrentBarcode] = useState(null);
-
-  const pauseRequestedRef = useRef(false);
-  const stopRequestedRef = useRef(false);
-  const queueRunningRef = useRef(false);
-
-  const [lightboxImage, setLightboxImage] = useState(null);
-  const [lightboxTitle, setLightboxTitle] = useState("");
+const [lightboxImage, setLightboxImage] = useState(null);
+const [lightboxTitle, setLightboxTitle] = useState("");
 
   useEffect(() => {
     return () => {
