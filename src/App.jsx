@@ -1498,7 +1498,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[radial-gradient(circle at top left,rgba(255,255,255,.6),transparent 22%),linear-gradient(135deg,#f1f1f1,#ffffff 55%,#f1f1f1)] p-8">
+    <div className="min-h-screen w-full bg-[radial-gradient(circle at top left,rgba(241,255,255,.6),transparent 22%),linear-gradient(135deg,#f1f1f1,#ffffff 55%,#f1f1f1)] p-8">
       <div className="max-w-[1450px] mx-auto rounded-[42px] border border-white/70 bg-white/20 backdrop-blur-xl p-7 shadow-[0_25px_80px_rgba(54,96,152,0.15)]">
         <div className="flex gap-6">
           <Sidebar page={page} setPage={setPage} />
