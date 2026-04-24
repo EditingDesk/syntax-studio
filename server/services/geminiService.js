@@ -1,10 +1,6 @@
 // Gemini Service
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
-
 if (!process.env.GEMINI_API_KEY) {
   throw new Error("Missing GEMINI_API_KEY");
 }
@@ -13,7 +9,12 @@ if (!process.env.GEMINI_IMAGE_MODEL) {
   throw new Error("Missing GEMINI_IMAGE_MODEL");
 }
 
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
+
 const DEFAULT_MODEL = process.env.GEMINI_IMAGE_MODEL;
+
 const PRODUCT_PRESERVATION_PROMPT = `
 CRITICAL PRODUCT PRESERVATION:
 Use the uploaded product image as the only source of truth.
@@ -56,15 +57,104 @@ function getMimeType(filename = "") {
   return "image/jpeg";
 }
 
-function extractImageBase64(response) {
-  const parts = response?.candidates?.[0]?.content?.parts || [];
+function buildFinalPrompt(prompt) {
+  return `
+${PRODUCT_PRESERVATION_PROMPT}
 
-  for (const part of parts) {
-    if (part.inlineData?.data) return part.inlineData.data;
-    if (part.inline_data?.data) return part.inline_data.data;
+USER TASK:
+${prompt}
+
+QUALITY CONTROL:
+Final image must be premium ecommerce product photography.
+Reject internally if logo, text, dial details, colors, proportions, strap shape, or product design are changed.
+Do not hallucinate missing text or fake brand details.
+Output only the final edited image.
+`;
+}
+
+function extractAllImageBase64(response) {
+  const images = [];
+  const candidates = response?.candidates || [];
+
+  for (const candidate of candidates) {
+    const parts = candidate?.content?.parts || [];
+
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        images.push(part.inlineData.data);
+      }
+
+      if (part.inline_data?.data) {
+        images.push(part.inline_data.data);
+      }
+    }
   }
 
-  throw new Error("Gemini did not return an image output.");
+  return images;
+}
+
+function pickBestImage(buffers = []) {
+  if (!buffers.length) {
+    throw new Error("No image buffers to select from.");
+  }
+
+  // Simple v1 quality selection:
+  // Bigger buffer usually means better detail / less compression.
+  return buffers.sort((a, b) => b.length - a.length)[0];
+}
+
+function isGoodEnough(buffer) {
+  if (!buffer) return false;
+
+  // Basic safety check.
+  // Tune after testing 20–30 real watch images.
+  const MIN_SIZE_BYTES = 150 * 1024;
+
+  return buffer.length >= MIN_SIZE_BYTES;
+}
+
+async function generateOnce({
+  imageBuffer,
+  prompt,
+  filename,
+  model,
+  candidateCount = 1,
+}) {
+  const response = await ai.models.generateContent({
+    model,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            inlineData: {
+              mimeType: getMimeType(filename),
+              data: imageBuffer.toString("base64"),
+            },
+          },
+          {
+            text: buildFinalPrompt(prompt),
+          },
+        ],
+      },
+    ],
+    config: {
+      temperature: 0.12,
+      topP: 0.65,
+      candidateCount,
+      responseModalities: ["IMAGE"],
+    },
+  });
+
+  const base64Images = extractAllImageBase64(response);
+
+  if (!base64Images.length) {
+    throw new Error("Gemini did not return an image output.");
+  }
+
+  const buffers = base64Images.map((img) => Buffer.from(img, "base64"));
+
+  return pickBestImage(buffers);
 }
 
 export async function generateProductImage({
@@ -81,49 +171,59 @@ export async function generateProductImage({
     throw new Error("Missing prompt");
   }
 
-  const finalPrompt = `
-${PRODUCT_PRESERVATION_PROMPT}
+  console.log("Using Gemini model:", model);
 
-USER TASK:
-${prompt}
-
-QUALITY CONTROL:
-Final image must be premium ecommerce product photography.
-Reject internally and regenerate mentally if logo/text/details are changed.
-Output only the final edited image.
-`;
-
-  const response = await ai.models.generateContent({
+  // Attempt 1: cheap single generation
+  const firstResult = await generateOnce({
+    imageBuffer,
+    prompt,
+    filename,
     model,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            inlineData: {
-              mimeType: getMimeType(filename),
-              data: imageBuffer.toString("base64"),
-            },
-          },
-          {
-            text: finalPrompt,
-          },
-        ],
-      },
-    ],
-    config: {
-      temperature: 0.12,
-      topP: 0.65,
-      candidateCount: 1,
-      responseModalities: ["IMAGE"],
-    },
+    candidateCount: 1,
   });
 
-  const base64Image = extractImageBase64(response);
+  if (isGoodEnough(firstResult)) {
+    console.log("Gemini quality check: passed first attempt");
+    return firstResult;
+  }
 
-  return Buffer.from(base64Image, "base64");
+  console.log("Gemini quality check: retrying with 3 candidates");
+
+  // Attempt 2: only spend more when needed
+  const retryResult = await generateOnce({
+    imageBuffer,
+    prompt,
+    filename,
+    model,
+    candidateCount: 3,
+  });
+
+  return retryResult;
 }
 
 export default {
   generateProductImage,
+};
+
+import { generationQueue } from "./queueManager.js";
+
+export const generateImage = async (payload) => {
+  return generationQueue.add(async () => {
+    // your existing Gemini call
+    return await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: payload,
+    });
+  });
+};
+
+import { processingQueue } from "./queueManager.js";
+
+export const processImage = async (imageBuffer) => {
+  return processingQueue.add(async () => {
+    return await sharp(imageBuffer)
+      .resize(2000)
+      .sharpen()
+      .toBuffer();
+  });
 };
