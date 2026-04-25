@@ -1,12 +1,22 @@
-const categoryTemplates = {
+export const categoryTemplates = {
   watch: {
     front: `
-// Front-end watch template
+Create a high-end e-commerce product image of the provided wristwatch.
+
+STRICT REQUIREMENTS:
+- Do NOT modify design, logo, or text
+- Preserve all details exactly
+
+COMPOSITION:
+- Center the watch
+- Keep straps straight and even
+- 100px margin
+
+BACKGROUND:
+- Light gray (#EDEDED)
+
+LIGHTING:
+- Soft studio lighting
 `
   }
 };
-
-const template = categoryTemplates.watch.front;
-const finalPrompt = template + userAdjustments;
-
-module.exports = categoryTemplates;
