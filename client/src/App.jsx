@@ -1,3 +1,4 @@
+import { categoryTemplates } from "./config/categoryTemplates";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
 import {
@@ -20,7 +21,8 @@ import {
   Pause,
   Play,
   Square,
-} from "lucide-react";
+} 
+from "lucide-react";
 
 const STORAGE_KEY = "syntax_studio_watch_prompts_v1";
 

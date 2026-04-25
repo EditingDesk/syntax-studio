@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "@google/genai": "^0.3.0",
@@ -12,5 +13,8 @@
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
     "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }
