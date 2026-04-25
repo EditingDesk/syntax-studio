@@ -1,8 +1,6 @@
 import GeneratorPage from "./pages/GeneratorPage";
 
-export default function App() {
-  return <GeneratorPage />;
-}
+
 import { categoryTemplates } from "./config/categoryTemplates";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";

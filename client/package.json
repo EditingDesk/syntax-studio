@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "node ./node_modules/vite/bin/vite.js build",
-    "preview": "node ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port $PORT"
-  },
+  "dev": "vite",
+  "build": "node ./node_modules/vite/bin/vite.js build",
+  "preview": "node ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 4173",
+  "start": "node ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port $PORT"
+},
   "dependencies": {
     "jszip": "^3.10.1",
     "lucide-react": "^0.344.0",
