@@ -9,9 +9,7 @@ export async function generateImages(prompts) {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      prompts: prompts
-    })
+    body: JSON.stringify({ prompts })
   });
 
   if (!response.ok) {
