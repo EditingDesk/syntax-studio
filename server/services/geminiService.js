@@ -1,4 +1,5 @@
-// Gemini Service
+// server/services/geminiService.js
+
 import { GoogleGenAI } from "@google/genai";
 
 if (!process.env.GEMINI_API_KEY) {
@@ -98,18 +99,13 @@ function pickBestImage(buffers = []) {
     throw new Error("No image buffers to select from.");
   }
 
-  // Simple v1 quality selection:
-  // Bigger buffer usually means better detail / less compression.
   return buffers.sort((a, b) => b.length - a.length)[0];
 }
 
 function isGoodEnough(buffer) {
   if (!buffer) return false;
 
-  // Basic safety check.
-  // Tune after testing 20–30 real watch images.
   const MIN_SIZE_BYTES = 150 * 1024;
-
   return buffer.length >= MIN_SIZE_BYTES;
 }
 
@@ -173,7 +169,6 @@ export async function generateProductImage({
 
   console.log("Using Gemini model:", model);
 
-  // Attempt 1: cheap single generation
   const firstResult = await generateOnce({
     imageBuffer,
     prompt,
@@ -189,41 +184,11 @@ export async function generateProductImage({
 
   console.log("Gemini quality check: retrying with 3 candidates");
 
-  // Attempt 2: only spend more when needed
-  const retryResult = await generateOnce({
+  return await generateOnce({
     imageBuffer,
     prompt,
     filename,
     model,
     candidateCount: 3,
   });
-
-  return retryResult;
 }
-
-export default {
-  generateProductImage,
-};
-
-import { generationQueue } from "./queueManager.js";
-
-export const generateImage = async (payload) => {
-  return generationQueue.add(async () => {
-    // your existing Gemini call
-    return await ai.models.generateContent({
-      model: DEFAULT_MODEL,
-      contents: payload,
-    });
-  });
-};
-
-import { processingQueue } from "./queueManager.js";
-
-export const processImage = async (imageBuffer) => {
-  return processingQueue.add(async () => {
-    return await sharp(imageBuffer)
-      .resize(2000)
-      .sharpen()
-      .toBuffer();
-  });
-};

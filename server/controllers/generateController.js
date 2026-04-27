@@ -1,3 +1,7 @@
+// server/controllers/generateController.js
+
+import { generateMultipleShots } from "../services/generationService.js";
+
 export async function generateHandler(req, res) {
   try {
     const { prompts } = req.body;
@@ -6,15 +10,12 @@ export async function generateHandler(req, res) {
 
     const images = await generateMultipleShots(prompts);
 
-    console.log("Generated images:", images);
-
     res.json({
       success: true,
-      images: images
+      images
     });
-
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Generation failed" });
+    console.error("Generation failed:", err.message);
+    res.status(500).json({ error: err.message });
   }
 }

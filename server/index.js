@@ -1,15 +1,22 @@
+// server/index.js
+import { categoryTemplates } from "./config/categoryTemplates.js";
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import multer from "multer";
 import sharp from "sharp";
 import { GoogleGenAI } from "@google/genai";
-
-dotenv.config();
+import generateRoutes from "./routes/generateRoutes.js";
+import { generationQueue } from "./services/queueManager.js";
 
 const app = express();
 
-// ===== Multer (memory upload) =====
+app.use(cors());
+app.use(express.json({ limit: "50mb" }));
+
+app.use("/api", generateRoutes);
+
+// ===== Multer =====
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -17,16 +24,11 @@ const upload = multer({
   },
 });
 
-app.use(cors());
-app.use(express.json({ limit: "50mb" }));
-
 // ===== Gemini setup =====
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-// ===== Shot order =====
-const shotOrder = ["front", "angle", "side", "back", "box"];
 
 // ===== Helpers =====
 function toInlinePart(file) {
@@ -154,7 +156,7 @@ app.post(
   async (req, res) => {
     try {
       const barcode = req.body.barcode || "";
-      const model = req.body.model || "gemini-3.1-flash-image-preview";
+      const model = req.body.model || process.env.GEMINI_IMAGE_MODEL;
       const candidateCount = Math.max(
         1,
         Math.min(3, Number(req.body.candidateCount || 1))
@@ -163,6 +165,24 @@ app.post(
       const prompts = JSON.parse(req.body.prompts || "{}");
       const processing = JSON.parse(req.body.processing || "{}");
       const files = req.files || {};
+      const category = req.body.category || "watch";
+
+      const template = categoryTemplates[category];
+
+      if (!template) {
+      throw new Error(`Unknown category: ${category}`);
+      }
+
+const shotOrder = template.shots;
+      const uploadedShotCount = Object.values(files).filter(
+        (shotFiles) => shotFiles?.length
+      ).length;
+
+      if (uploadedShotCount > 10) {
+        throw new Error("Max 10 images per request");
+      }
+
+      console.log("Batch size:", uploadedShotCount);
 
       const results = {};
 
@@ -170,20 +190,25 @@ app.post(
         const file = files?.[shot]?.[0];
         if (!file) continue;
 
-        console.log("Generating:", shot);
+        console.log("Queueing:", shot);
 
         const prompt = prompts?.[shot];
+
         if (!prompt) {
           throw new Error(`Missing prompt for ${shot}`);
         }
 
-        const generated = await generateCandidates({
-          model,
-          prompt,
-          file,
-          candidateCount,
-          processing,
-        });
+        const generated = await generationQueue.add(() =>
+          generateCandidates({
+            model,
+            prompt,
+            file,
+            candidateCount,
+            processing,
+          })
+        );
+
+        console.log("Done:", shot);
 
         results[shot] = {
           bestIndex: 0,
@@ -197,7 +222,7 @@ app.post(
         results,
       });
     } catch (err) {
-      console.error(err);
+      console.error("Generation failed:", err);
 
       return res.status(500).json({
         ok: false,

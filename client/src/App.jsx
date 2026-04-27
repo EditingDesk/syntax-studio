@@ -522,7 +522,7 @@ function WatchesPage({
   }
 
   async function generateSingleJob(barcode) {
-    const API_URL = "https://syntax-studio-backend.up.railway.app";
+    const API_URL = "http://localhost:3001";
 
     const targetJob = jobs.find((job) => job.barcode === barcode);
     if (!targetJob) return false;
@@ -547,6 +547,7 @@ function WatchesPage({
 
     try {
       const formData = new FormData();
+formData.append("category", "watch");
 formData.append("barcode", barcode);
 formData.append("model", settings.modelLabel);
 formData.append("candidateCount", "1");
@@ -571,7 +572,7 @@ formData.append(
           formData.append(shot, asset.file, asset.name);
         }
       });
-
+console.log("Calling API...");
       const response = await fetch(`${API_URL}/api/generate-watch-job`, {
         method: "POST",
         body: formData,
