@@ -19,36 +19,73 @@ const DEFAULT_MODEL = process.env.GEMINI_IMAGE_MODEL;
 const PRODUCT_PRESERVATION_PROMPT = `
 CRITICAL PRODUCT PRESERVATION:
 Use the uploaded product image as the only source of truth.
-Do not recreate, redesign, reinterpret, beautify, simplify, or improve the product itself.
-Never replace readable text with random letters or fake text.
+
+Do not:
+- recreate the product
+- redesign the product
+- change logo, text, dial, numbers, engravings, hands, subdials
+- change strap shape, color, material, proportions, or texture
+- invent missing details
+- add fake branding
+- replace readable text with random text
 
 Preserve exactly:
-- logo
-- brand text
-- dial text
-- numbers
-- engravings
-- hands
-- subdials
-- strap shape
-- colors
-- materials
+- product shape
+- brand/logo/text
+- colors and materials
+- dial/details/engravings
 - proportions
-- texture
-- reflections
-
-If any logo, text, or small detail is unclear, keep it unchanged from the input.
-Do not guess or invent missing details.
+- original product identity
 
 Only improve:
 - background
 - lighting
 - centering
 - dust cleanup
-- stand removal
-- camera reflections removal
 - ecommerce presentation
 `;
+
+const GEMINI_CONFIG = {
+  temperature: 0.12,
+  topP: 0.65,
+  responseModalities: ["IMAGE"],
+};
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableError(error) {
+  const message = String(error?.message || error || "");
+
+  return (
+    message.includes("429") ||
+    message.includes("Too Many Requests") ||
+    message.includes("RESOURCE_EXHAUSTED") ||
+    message.includes("Quota exceeded") ||
+    message.includes("503") ||
+    message.includes("UNAVAILABLE")
+  );
+}
+
+async function retryGeminiCall(fn, retries = 2) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!isRetryableError(error) || retries <= 0) {
+      throw error;
+    }
+
+    const attempt = 3 - retries;
+    const delayMs = attempt * 4000;
+
+    console.log(`Gemini retryable error. Retrying in ${delayMs / 1000}s...`);
+
+    await sleep(delayMs);
+
+    return retryGeminiCall(fn, retries - 1);
+  }
+}
 
 function getMimeType(filename = "") {
   const ext = filename.toLowerCase().split(".").pop();
@@ -66,15 +103,14 @@ USER TASK:
 ${prompt}
 
 QUALITY CONTROL:
-Final image must be premium ecommerce product photography.
-Reject internally if logo, text, dial details, colors, proportions, strap shape, or product design are changed.
-Do not hallucinate missing text or fake brand details.
+Final image must look like premium ecommerce product photography.
+Keep the product design unchanged.
+If a detail is unclear, preserve it from the input image instead of guessing.
 Output only the final edited image.
 `;
 }
 
-function extractAllImageBase64(response) {
-  const images = [];
+function extractImageBase64(response) {
   const candidates = response?.candidates || [];
 
   for (const candidate of candidates) {
@@ -82,75 +118,28 @@ function extractAllImageBase64(response) {
 
     for (const part of parts) {
       if (part.inlineData?.data) {
-        images.push(part.inlineData.data);
+        return part.inlineData.data;
       }
 
       if (part.inline_data?.data) {
-        images.push(part.inline_data.data);
+        return part.inline_data.data;
       }
     }
   }
 
-  return images;
+  return null;
 }
 
-function pickBestImage(buffers = []) {
-  if (!buffers.length) {
-    throw new Error("No image buffers to select from.");
+function validateImageBuffer(buffer) {
+  if (!buffer || !Buffer.isBuffer(buffer)) {
+    throw new Error("Invalid Gemini image buffer");
   }
 
-  return buffers.sort((a, b) => b.length - a.length)[0];
-}
-
-function isGoodEnough(buffer) {
-  if (!buffer) return false;
-
-  const MIN_SIZE_BYTES = 150 * 1024;
-  return buffer.length >= MIN_SIZE_BYTES;
-}
-
-async function generateOnce({
-  imageBuffer,
-  prompt,
-  filename,
-  model,
-  candidateCount = 1,
-}) {
-  const response = await ai.models.generateContent({
-    model,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            inlineData: {
-              mimeType: getMimeType(filename),
-              data: imageBuffer.toString("base64"),
-            },
-          },
-          {
-            text: buildFinalPrompt(prompt),
-          },
-        ],
-      },
-    ],
-    config: {
-      temperature: 0.12,
-      topP: 0.65,
-      candidateCount,
-      responseModalities: ["IMAGE"],
-    },
-  });
-
-  const base64Images = extractAllImageBase64(response);
-
-  if (!base64Images.length) {
-    throw new Error("Gemini did not return an image output.");
+  if (buffer.length < 20 * 1024) {
+    console.warn("Gemini output is unusually small. Keeping result but flagging quality.");
   }
 
-  const buffers = base64Images.map((img) => Buffer.from(img, "base64"));
-
-  return pickBestImage(buffers);
+  return buffer;
 }
 
 export async function generateProductImage({
@@ -159,36 +148,46 @@ export async function generateProductImage({
   filename = "input.jpg",
   model = DEFAULT_MODEL,
 }) {
-  if (!imageBuffer) {
-    throw new Error("Missing imageBuffer");
+  if (!imageBuffer || !Buffer.isBuffer(imageBuffer)) {
+    throw new Error("Missing or invalid imageBuffer");
   }
 
-  if (!prompt) {
-    throw new Error("Missing prompt");
+  if (!prompt || typeof prompt !== "string") {
+    throw new Error("Missing or invalid prompt");
   }
 
   console.log("Using Gemini model:", model);
 
-  const firstResult = await generateOnce({
-    imageBuffer,
-    prompt,
-    filename,
-    model,
-    candidateCount: 1,
-  });
+  const response = await retryGeminiCall(() =>
+    ai.models.generateContent({
+      model,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: getMimeType(filename),
+                data: imageBuffer.toString("base64"),
+              },
+            },
+            {
+              text: buildFinalPrompt(prompt),
+            },
+          ],
+        },
+      ],
+      config: GEMINI_CONFIG,
+    })
+  );
 
-  if (isGoodEnough(firstResult)) {
-    console.log("Gemini quality check: passed first attempt");
-    return firstResult;
+  const base64Image = extractImageBase64(response);
+
+  if (!base64Image) {
+    throw new Error("Gemini did not return an image output.");
   }
 
-  console.log("Gemini quality check: retrying with 3 candidates");
+  const outputBuffer = Buffer.from(base64Image, "base64");
 
-  return await generateOnce({
-    imageBuffer,
-    prompt,
-    filename,
-    model,
-    candidateCount: 3,
-  });
+  return validateImageBuffer(outputBuffer);
 }

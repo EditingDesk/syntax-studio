@@ -1,20 +1,42 @@
 // client/src/services/api.js
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
 
-export async function generateImages(prompts) {
-  const response = await fetch(`${API_BASE_URL}/api/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ prompts })
+export async function generateImages(payload) {
+  const formData = new FormData();
+
+  formData.append("mode", payload.mode);
+  formData.append("category", payload.category);
+  formData.append("preset", payload.preset);
+  formData.append("background", payload.background);
+  formData.append("size", payload.size);
+  formData.append("quality", payload.quality);
+  formData.append("shots", JSON.stringify(payload.shots || []));
+
+  payload.files.forEach((item) => {
+    if (item.file) {
+      formData.append("images", item.file, item.name);
+    }
   });
 
-  if (!response.ok) {
-    throw new Error("Generation failed");
-  }
+  try {
+    const res = await fetch(`${API_BASE}/api/generate`, {
+      method: "POST",
+      body: formData,
+    });
 
-  return response.json();
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error("Generate API error:", data);
+      throw new Error(data.error || "Generation failed");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Generate API fetch failed:", error);
+    throw new Error(
+      "Unable to connect to the generation server. Make sure the backend is running and reachable at http://localhost:3001."
+    );
+  }
 }

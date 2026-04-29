@@ -8,14 +8,24 @@ import sharp from "sharp";
 import { GoogleGenAI } from "@google/genai";
 import generateRoutes from "./routes/generateRoutes.js";
 import { generationQueue } from "./services/queueManager.js";
+import downloadRoutes from "./routes/downloadRoutes.js";
+
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.use("/outputs", express.static("outputs"));
 app.use(express.json({ limit: "50mb" }));
 
 app.use("/api", generateRoutes);
-
+app.use("/api", downloadRoutes);
 // ===== Multer =====
 const upload = multer({
   storage: multer.memoryStorage(),
