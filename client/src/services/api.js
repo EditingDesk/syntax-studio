@@ -1,6 +1,9 @@
 // client/src/services/api.js
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:3001";
 
 export async function generateImages(payload) {
   const formData = new FormData();
@@ -36,7 +39,7 @@ export async function generateImages(payload) {
   } catch (error) {
     console.error("Generate API fetch failed:", error);
     throw new Error(
-      "Unable to connect to the generation server. Make sure the backend is running and reachable at http://localhost:3001."
+      `Unable to connect to the generation server. Make sure the backend is reachable at ${API_BASE}.`
     );
   }
 }
