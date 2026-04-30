@@ -98,9 +98,13 @@ export default function ProductsPage() {
     sharpen: true,
     upscale: true,
   });
-  const API_BASE =
-    import.meta.env.VITE_API_BASE || "http://localhost:3001";
+  const API_BASE = import.meta.env.VITE_API_BASE;
 
+console.log("PRODUCTS API_BASE:", API_BASE);
+
+if (!API_BASE) {
+  throw new Error("Missing VITE_API_BASE in Railway env");
+}
   const getImageUrl = (url) => {
     if (!url) return "";
     if (url.startsWith("http")) return url;
