@@ -5,20 +5,26 @@ const API_BASE =
   import.meta.env.VITE_API_URL ||
   "http://localhost:3001";
 
+console.log("API_BASE:", API_BASE);
+
 export async function generateImages(payload) {
+  if (!payload) {
+    throw new Error("Missing generation payload");
+  }
+
   const formData = new FormData();
 
-  formData.append("mode", payload.mode);
-  formData.append("category", payload.category);
-  formData.append("preset", payload.preset);
-  formData.append("background", payload.background);
-  formData.append("size", payload.size);
-  formData.append("quality", payload.quality);
+  formData.append("mode", payload.mode || "");
+  formData.append("category", payload.category || "");
+  formData.append("preset", payload.preset || "");
+  formData.append("background", payload.background || "");
+  formData.append("size", payload.size || "");
+  formData.append("quality", payload.quality || "");
   formData.append("shots", JSON.stringify(payload.shots || []));
 
-  payload.files.forEach((item) => {
-    if (item.file) {
-      formData.append("images", item.file, item.name);
+  (payload.files || []).forEach((item) => {
+    if (item?.file) {
+      formData.append("images", item.file, item.name || item.file.name);
     }
   });
 
@@ -28,18 +34,25 @@ export async function generateImages(payload) {
       body: formData,
     });
 
-    const data = await res.json();
+    let data = null;
+
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
 
     if (!res.ok) {
       console.error("Generate API error:", data);
-      throw new Error(data.error || "Generation failed");
+      throw new Error(data.error || `Generation failed with status ${res.status}`);
     }
 
     return data;
   } catch (error) {
     console.error("Generate API fetch failed:", error);
+
     throw new Error(
-      `Unable to connect to the generation server. Make sure the backend is reachable at ${API_BASE}.`
+      `Unable to connect to the generation server. Backend URL used: ${API_BASE}`
     );
   }
 }
