@@ -250,27 +250,25 @@ const prompts = uploadedImages.map((img) =>
 );
 
 formData.append("prompts", JSON.stringify(prompts));
-
-formData.append("prompts", JSON.stringify(prompts));
 formData.append("processing", JSON.stringify(processingOptions));
 
-      console.log("Sending formData with uploaded images and prompts");
+console.log("Sending formData with uploaded images and prompts");
 
-            const response = await fetch(`${API_BASE}/api/generate`, {
-                              method: "POST",
-                              body: formData,
-                    });
+const response = await fetch(`${API_BASE}/api/generate`, {
+  method: "POST",
+  body: formData,
+});
 
-      const result = await response.json();
+const result = await response.json();
 
-      console.log("RESULT:", result);
+console.log("RESULT:", result);
 
-      if (!response.ok || result.success === false) {
-        throw new Error(result.message || "Generation failed");
-      }
+if (!response.ok || result.success === false) {
+  throw new Error(result.message || "Generation failed");
+}
 
-      setCurrentBatchId(result.batchId);
-      setGeneratedImages(result.results || []);
+setCurrentBatchId(result.batchId);
+setGeneratedImages(result.results || []);
     } catch (err) {
       console.error("ProductsPage generate request failed:", err);
       alert(
