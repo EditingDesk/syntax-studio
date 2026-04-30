@@ -92,6 +92,7 @@ export default function ProductsPage() {
   const [files, setFiles] = useState([]);
   const [currentBatchId, setCurrentBatchId] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
+
   const [processingOptions, setProcessingOptions] = useState({
     removeBg: true,
     enhance: true,
@@ -99,6 +100,7 @@ export default function ProductsPage() {
     upscale: true,
   });
   const API_BASE = import.meta.env.VITE_API_BASE;
+
 
 console.log("PRODUCTS API_BASE:", API_BASE);
 
@@ -226,36 +228,31 @@ if (!API_BASE) {
     setGeneratedImages([]);
   };
 
-  const handleGenerate = async () => {
-    try {
-      if (files.length === 0) {
-        alert("Please upload at least one product image.");
-        return;
-      }
+ const formData = new FormData();
 
-      if (mode === "generate_new_shots" && selectedShots.length === 0) {
-        alert("Please select at least one shot.");
-        return;
-      }
+formData.append("mode", mode);
+formData.append("category", selectedCategory);
+formData.append("preset", selectedPreset);
+formData.append("background", background);
+formData.append("size", size);
+formData.append("quality", selectedQuality);
+formData.append("shots", JSON.stringify(selectedShots || []));
+formData.append("processing", JSON.stringify(processingOptions));
 
-      setGenerating(true);
-      setGeneratedImages([]);
+// ✅ images
+uploadedImages.forEach((img) => {
+  formData.append("images", img.file);
+});
 
-      const formData = new FormData();
-      formData.append("mode", mode);
-      formData.append("category", selectedCategory);
-      formData.append("preset", selectedPreset);
-      formData.append("background", background);
-      formData.append("size", size);
-      formData.append("quality", selectedQuality);
-      formData.append("shots", JSON.stringify(selectedShots || []));
-      formData.append("processing", JSON.stringify(processingOptions));
+// ✅ prompts (ARRAY, not multiple appends)
+const prompts = uploadedImages.map((img) =>
+  getWatchPromptForFile(img.name)
+);
 
-      const uploadedImages = files;
-      uploadedImages.forEach((img) => {
-        formData.append("images", img.file);
-        formData.append("prompts", getWatchPromptForFile(img.name));
-      });
+formData.append("prompts", JSON.stringify(prompts));
+
+formData.append("prompts", JSON.stringify(prompts));
+formData.append("processing", JSON.stringify(processingOptions));
 
       console.log("Sending formData with uploaded images and prompts");
 
