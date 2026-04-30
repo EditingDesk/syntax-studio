@@ -1,4 +1,5 @@
 // client/src/pages/ProductsPage.jsx
+
 import Lightbox from "../components/Lightbox";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -254,10 +255,10 @@ export default function ProductsPage() {
 
       console.log("Sending formData with uploaded images and prompts");
 
-            const response = await fetch(GENERATE_ENDPOINT, {
-        method: "POST",
-        body: formData,
-      });
+            const response = await fetch(`${API_BASE}/api/generate`, {
+                              method: "POST",
+                              body: formData,
+                    });
 
       const result = await response.json();
 
