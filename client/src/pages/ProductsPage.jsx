@@ -98,13 +98,17 @@ export default function ProductsPage() {
     upscale: true,
   });
   const API_BASE =
-  import.meta.env.VITE_API_BASE || "http://localhost:3001";
+    import.meta.env.VITE_API_BASE || "http://localhost:3001";
+
+  const getImageUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("http")) return url;
+    return `${API_BASE}${url}`;
+  };
 
   const downloadImage = async (img) => {
     try {
-      const fileUrl = img.url.startsWith("http")
-  ? img.url
-  : `${API_BASE}${img.url}`;
+      const fileUrl = getImageUrl(img.url);
 
       const response = await fetch(fileUrl, {
         method: "GET",
@@ -702,44 +706,48 @@ export default function ProductsPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                {generatedImages.map((img) => (
-                  <div
-                    key={img.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
-                  >
-                    <div
-                      onClick={() =>
-                        setLightboxImage({
-                          ...img,
-                          type: "generated",
-                          previewUrl: `http://localhost:3001${img.url}`,
-                        })
-                      }
-                      className="aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-xl bg-[#F1F1F1]"
-                    >
-                      <img
-                        src={`http://localhost:3001${img.url}`}
-                        alt={img.shot}
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
+                  {generatedImages.map((img) => {
+                    const previewUrl = getImageUrl(img.url);
 
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-bold capitalize text-black">
-                        {img.shot}
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={() => downloadImage(img)}
-                        className="rounded-lg bg-black px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                    return (
+                      <div
+                        key={img.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
                       >
-                        Download
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        <div
+                          onClick={() =>
+                            setLightboxImage({
+                              ...img,
+                              type: "generated",
+                              previewUrl,
+                            })
+                          }
+                          className="aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-xl bg-[#F1F1F1]"
+                        >
+                          <img
+                            src={previewUrl}
+                            alt={img.shot}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-bold capitalize text-black">
+                            {img.shot}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => downloadImage(img)}
+                            className="rounded-lg bg-black px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+            </div>
             </div>
           )}
         </div>
