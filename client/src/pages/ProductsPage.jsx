@@ -97,8 +97,13 @@ export default function ProductsPage() {
     sharpen: true,
     upscale: true,
   });
-  const API_BASE =
-    import.meta.env.VITE_API_BASE || "http://localhost:3001";
+    const API_BASE = (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE ||
+    ""
+  ).replace(/\/$/, "");
+  const GENERATE_ENDPOINT = `${API_BASE}/api/generate`;
 
   const getImageUrl = (url) => {
     if (!url) return "";
@@ -254,7 +259,7 @@ export default function ProductsPage() {
 
       console.log("Sending formData with uploaded images and prompts");
 
-      const response = await fetch(`${API_BASE}/api/generate`, {
+            const response = await fetch(GENERATE_ENDPOINT, {
         method: "POST",
         body: formData,
       });
@@ -269,10 +274,17 @@ export default function ProductsPage() {
 
       setCurrentBatchId(result.batchId);
       setGeneratedImages(result.results || []);
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Generation failed. Check backend terminal.");
-    } finally {
+    } catch (err)
+
+      console.error("ProductsPage generate request failed:", err);
+      alert(
+        err.message ||
+          `Generation failed in Products page. Confirm backend API URL is correct${
+            API_BASE ? ` (${API_BASE})` : ""
+          } and reachable.`
+      );
+    
+    finally {
       setGenerating(false);
     }
   };
