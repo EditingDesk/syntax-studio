@@ -15,15 +15,19 @@ const app = express();
 
 app.use(
   cors({
-    origin: "*",
+    origin: [
+      "http://localhost:5173",
+      "https://syntax-studio-frontend.up.railway.app",
+    ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 
 app.use("/outputs", express.static("outputs"));
 app.use(express.json({ limit: "50mb" }));
-
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use("/api", generateRoutes);
 app.use("/api", downloadRoutes);
 // ===== Multer =====
