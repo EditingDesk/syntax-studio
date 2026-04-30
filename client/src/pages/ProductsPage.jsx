@@ -97,11 +97,14 @@ export default function ProductsPage() {
     sharpen: true,
     upscale: true,
   });
-  const API_BASE = "http://localhost:3001";
+  const API_BASE =
+  import.meta.env.VITE_API_BASE || "http://localhost:3001";
 
   const downloadImage = async (img) => {
     try {
-      const fileUrl = `${API_BASE}${img.url}`;
+      const fileUrl = img.url.startsWith("http")
+  ? img.url
+  : `${API_BASE}${img.url}`;
 
       const response = await fetch(fileUrl, {
         method: "GET",
