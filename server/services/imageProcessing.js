@@ -4,7 +4,7 @@ import path from "path";
 
 const OUTPUT_WIDTH = 1644;
 const OUTPUT_HEIGHT = 2464;
-const TOP_BOTTOM_MARGIN = 0;
+const TOP_BOTTOM_MARGIN = 150;
 const JPG_QUALITY = 95;
 
 const CONTENT_WIDTH = OUTPUT_WIDTH;
