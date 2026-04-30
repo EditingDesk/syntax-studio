@@ -269,8 +269,7 @@ export default function ProductsPage() {
 
       setCurrentBatchId(result.batchId);
       setGeneratedImages(result.results || []);
-    } catch (err)
-
+    } catch (err) {
       console.error("ProductsPage generate request failed:", err);
       alert(
         err.message ||
@@ -278,8 +277,7 @@ export default function ProductsPage() {
             API_BASE ? ` (${API_BASE})` : ""
           } and reachable.`
       );
-    
-    finally {
+    } finally {
       setGenerating(false);
     }
   };
