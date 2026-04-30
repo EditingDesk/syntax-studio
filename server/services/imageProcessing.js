@@ -4,8 +4,7 @@ import path from "path";
 
 const OUTPUT_WIDTH = 1644;
 const OUTPUT_HEIGHT = 2464;
-const TOP_BOTTOM_MARGIN = 100;
-const BACKGROUND_COLOR = "#F1F1F1";
+const TOP_BOTTOM_MARGIN = 0;
 const JPG_QUALITY = 95;
 
 const CONTENT_WIDTH = OUTPUT_WIDTH;
@@ -80,7 +79,7 @@ export async function processFinalProductImage(inputBuffer, outputPath, options 
       width,
       height,
       channels: 3,
-    
+      background,
     },
   })
     .composite([
