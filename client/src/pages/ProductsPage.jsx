@@ -97,13 +97,8 @@ export default function ProductsPage() {
     sharpen: true,
     upscale: true,
   });
-    const API_BASE = (
-    import.meta.env.VITE_API_BASE_URL ||
-    import.meta.env.VITE_API_URL ||
-    import.meta.env.VITE_API_BASE ||
-    ""
-  ).replace(/\/$/, "");
-  const GENERATE_ENDPOINT = `${API_BASE}/api/generate`;
+  const API_BASE =
+    import.meta.env.VITE_API_BASE || "http://localhost:3001";
 
   const getImageUrl = (url) => {
     if (!url) return "";
