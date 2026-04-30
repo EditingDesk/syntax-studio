@@ -4,7 +4,7 @@ import path from "path";
 
 const OUTPUT_WIDTH = 1644;
 const OUTPUT_HEIGHT = 2464;
-const TOP_BOTTOM_MARGIN = 150;
+const TOP_BOTTOM_MARGIN = 50;
 const JPG_QUALITY = 95;
 
 const CONTENT_WIDTH = OUTPUT_WIDTH;
@@ -46,13 +46,11 @@ export async function processFinalProductImage(inputBuffer, outputPath, options 
     .trim({
       threshold: 18,
     })
-    .resize({
-      width,
-      height: contentHeight,
-      fit: "cover",
-      position: "center",
-      kernel: sharp.kernel.lanczos3,
-      withoutEnlargement: false,
+   .resize({
+  width: CONTENT_WIDTH,
+  height: CONTENT_HEIGHT,
+  fit: "contain",
+  background: { r: 241, g: 241, b: 241, alpha: 1 },
     });
 
   if (enhance) {
