@@ -94,7 +94,7 @@ export default function ProductsPage() {
   const [lightboxImage, setLightboxImage] = useState(null);
 
   const [processingOptions, setProcessingOptions] = useState({
-    removeBg: true,
+    removeBg: false,
     enhance: true,
     sharpen: true,
     upscale: true,
