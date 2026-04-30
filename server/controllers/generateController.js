@@ -1,3 +1,4 @@
+// server/controllers/generateController.js
 import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
@@ -7,42 +8,72 @@ import { removeImageBackground } from "../services/backgroundRemoval.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const OUTPUT_DIR = path.join(__dirname, "../outputs");
 
 function cleanFileName(name = "image") {
   return name
     .replace(/\.[^/.]+$/, "")
     .replace(/[^a-zA-Z0-9_-]/g, "_")
-    .replace(/_+/g, "_");
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function getShotName(file, index) {
-  const original = cleanFileName(file.originalname);
+  const original = cleanFileName(file.originalname).toLowerCase();
 
-  if (original.toLowerCase().includes("front")) return "front";
-  if (original.toLowerCase().includes("angle")) return "angle";
-  if (original.toLowerCase().includes("side")) return "side";
-  if (original.toLowerCase().includes("back")) return "back";
-  if (original.toLowerCase().includes("box")) return "box";
+  if (original.includes("front")) return "front";
+  if (original.includes("angle")) return "angle";
+  if (original.includes("side")) return "side";
+  if (original.includes("back")) return "back";
+  if (original.includes("box")) return "box";
 
   return `shot_${index + 1}`;
 }
 
 function getOutputSize(size = "") {
-  switch (size) {
-    case "1600x1600":
-      return { width: 1600, height: 1600 };
+  const normalized = String(size).toLowerCase().replace(/\s/g, "");
 
-    case "2000x2000":
-      return { width: 2000, height: 2000 };
-
-    case "1644x2464":
-      return { width: 1644, height: 2464 };
-
-    default:
-      return { width: 1644, height: 2464 };
+  if (normalized.includes("1600x1600")) {
+    return { width: 1600, height: 1600 };
   }
+
+  if (normalized.includes("2000x2000")) {
+    return { width: 2000, height: 2000 };
+  }
+
+  if (normalized.includes("1644x2464")) {
+    return { width: 1644, height: 2464 };
+  }
+
+  return { width: 1644, height: 2464 };
+}
+
+function parseJsonField(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizePrompts(value) {
+  const parsed = parseJsonField(value, []);
+
+  if (Array.isArray(parsed)) return parsed;
+  if (typeof parsed === "string" && parsed.trim()) return [parsed];
+
+  return [];
+}
+
+function getBackgroundHex(background = "lightgray") {
+  const value = String(background).toLowerCase();
+
+  if (value === "white") return "#FFFFFF";
+  return "#F1F1F1";
 }
 
 export async function generateHandler(req, res) {
@@ -51,25 +82,6 @@ export async function generateHandler(req, res) {
     console.log("Incoming files:", req.files?.length || 0);
 
     const files = req.files || [];
-
-    let prompts = req.body.prompts || [];
-    let processing = {};
-
-    try {
-      processing = JSON.parse(req.body.processing || "{}");
-    } catch {
-      processing = {};
-    }
-
-    const bgHex =
-      req.body.background?.toLowerCase() === "white" ? "#FFFFFF" : "#F1F1F1";
-    const selectedSize = req.body.size || "1644 x 2464";
-    const outputSize = getOutputSize(selectedSize);
-
-    // normalize to array
-    if (!Array.isArray(prompts)) {
-      prompts = [prompts];
-    }
 
     if (!files.length) {
       return res.status(400).json({
@@ -85,15 +97,13 @@ export async function generateHandler(req, res) {
       });
     }
 
-    await fs.mkdir(OUTPUT_DIR, { recursive: true });
+    const prompts = normalizePrompts(req.body.prompts);
+    const processing = parseJsonField(req.body.processing, {}) || {};
 
-    const {
-      category = "watch",
-      preset = "Premium Clean",
-      background = "White",
-      quality = "High",
-      prompt,
-    } = req.body;
+    const outputSize = getOutputSize(req.body.size || "1644x2464");
+    const bgHex = getBackgroundHex(req.body.background);
+
+    await fs.mkdir(OUTPUT_DIR, { recursive: true });
 
     const batchId = `watch_${Date.now()}`;
     const batchDir = path.join(OUTPUT_DIR, batchId);
@@ -102,10 +112,10 @@ export async function generateHandler(req, res) {
 
     const results = [];
 
-    for (let i = 0; i < files.length; i++) {
+    for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
       const shotName = getShotName(file, i);
-      const baseName = cleanFileName(file.originalname);
+      const baseName = cleanFileName(file.originalname) || `image_${i + 1}`;
 
       console.log(`Generating ${shotName} for ${file.originalname}`);
 
@@ -114,8 +124,6 @@ export async function generateHandler(req, res) {
         req.body.prompt ||
         "Create a clean premium ecommerce product image. Preserve the product exactly.";
 
-      console.log("Using prompt for", file.originalname);
-
       const geminiResult = await generateProductImage({
         imageBuffer: file.buffer,
         prompt: filePrompt,
@@ -123,7 +131,9 @@ export async function generateHandler(req, res) {
       });
 
       if (!geminiResult || !Buffer.isBuffer(geminiResult)) {
-        throw new Error(`Gemini did not return valid image buffer for ${file.originalname}`);
+        throw new Error(
+          `Gemini did not return valid image buffer for ${file.originalname}`
+        );
       }
 
       let imageForProcessing = geminiResult;
@@ -133,10 +143,10 @@ export async function generateHandler(req, res) {
         imageForProcessing = await removeImageBackground(geminiResult);
       }
 
-const outputFileName = `${baseName}_${shotName}_final.jpg`;
-const outputPath = path.join(batchDir, outputFileName);
+      const outputFileName = `${baseName}_${shotName}_final.jpg`;
+      const outputPath = path.join(batchDir, outputFileName);
 
-await processGeminiBufferToJpg(imageForProcessing, outputPath, {
+      await processGeminiBufferToJpg(imageForProcessing, outputPath, {
         width: outputSize.width,
         height: outputSize.height,
         marginTopBottom: 100,

@@ -99,14 +99,17 @@ export default function ProductsPage() {
     sharpen: true,
     upscale: true,
   });
-  const API_BASE = import.meta.env.VITE_API_BASE;
+  const API_BASE = (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_BASE ||
+    ""
+  ).replace(/\/$/, "");
 
+  console.log("PRODUCTS API_BASE:", API_BASE);
 
-console.log("PRODUCTS API_BASE:", API_BASE);
-
-if (!API_BASE) {
-  throw new Error("Missing VITE_API_BASE in Railway env");
-}
+  if (!API_BASE) {
+    throw new Error("Missing VITE_API_BASE_URL or VITE_API_BASE in Railway env");
+  }
   const getImageUrl = (url) => {
     if (!url) return "";
     if (url.startsWith("http")) return url;
@@ -228,47 +231,58 @@ if (!API_BASE) {
     setGeneratedImages([]);
   };
 
- const formData = new FormData();
+  const handleGenerate = async () => {
+    try {
+      if (files.length === 0) {
+        alert("Please upload at least one product image.");
+        return;
+      }
 
-formData.append("mode", mode);
-formData.append("category", selectedCategory);
-formData.append("preset", selectedPreset);
-formData.append("background", background);
-formData.append("size", size);
-formData.append("quality", selectedQuality);
-formData.append("shots", JSON.stringify(selectedShots || []));
-formData.append("processing", JSON.stringify(processingOptions));
+      if (mode === "generate_new_shots" && selectedShots.length === 0) {
+        alert("Please select at least one shot.");
+        return;
+      }
 
-// ✅ images
-uploadedImages.forEach((img) => {
-  formData.append("images", img.file);
-});
+      setGenerating(true);
+      setGeneratedImages([]);
+      setCurrentBatchId(null);
 
-// ✅ prompts (ARRAY, not multiple appends)
-const prompts = uploadedImages.map((img) =>
-  getWatchPromptForFile(img.name)
-);
+      const formData = new FormData();
+      const uploadedImages = files;
 
-formData.append("prompts", JSON.stringify(prompts));
-formData.append("processing", JSON.stringify(processingOptions));
+      formData.append("mode", mode);
+      formData.append("category", selectedCategory);
+      formData.append("preset", selectedPreset);
+      formData.append("background", background);
+      formData.append("size", size);
+      formData.append("quality", selectedQuality);
+      formData.append("shots", JSON.stringify(selectedShots || []));
+      formData.append("processing", JSON.stringify(processingOptions));
 
-console.log("Sending formData with uploaded images and prompts");
+      uploadedImages.forEach((img) => {
+        formData.append("images", img.file, img.name || img.file.name);
+      });
 
-const response = await fetch(`${API_BASE}/api/generate`, {
-  method: "POST",
-  body: formData,
-});
+      const prompts = uploadedImages.map((img) => getWatchPromptForFile(img.name));
+      formData.append("prompts", JSON.stringify(prompts));
 
-const result = await response.json();
+      console.log("Sending formData with uploaded images and prompts");
 
-console.log("RESULT:", result);
+      const response = await fetch(`${API_BASE}/api/generate`, {
+        method: "POST",
+        body: formData,
+      });
 
-if (!response.ok || result.success === false) {
-  throw new Error(result.message || "Generation failed");
-}
+      const result = await response.json();
 
-setCurrentBatchId(result.batchId);
-setGeneratedImages(result.results || []);
+      console.log("RESULT:", result);
+
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || result.error || "Generation failed");
+      }
+
+      setCurrentBatchId(result.batchId || null);
+      setGeneratedImages(result.results || []);
     } catch (err) {
       console.error("ProductsPage generate request failed:", err);
       alert(
