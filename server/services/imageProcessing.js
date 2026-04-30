@@ -50,7 +50,8 @@ export async function processFinalProductImage(inputBuffer, outputPath, options 
     .resize({
       width,
       height: contentHeight,
-      fit: "inside",
+      fit: "cover",
+      position: "center",
       kernel: sharp.kernel.lanczos3,
       withoutEnlargement: false,
     });
@@ -79,7 +80,7 @@ export async function processFinalProductImage(inputBuffer, outputPath, options 
       width,
       height,
       channels: 3,
-      background,
+    
     },
   })
     .composite([

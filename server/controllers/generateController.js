@@ -149,7 +149,7 @@ export async function generateHandler(req, res) {
       await processGeminiBufferToJpg(imageForProcessing, outputPath, {
         width: outputSize.width,
         height: outputSize.height,
-        marginTopBottom: 100,
+        marginTopBottom: 0,
         background: bgHex,
         quality: 95,
         sharpen: processing.sharpen === true,
