@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GenerationJob {
+  id           String   @id @default(uuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category     String   // watch, clothing, etc
+  mode         String?  // enhance, generate, batch
+  status       String   // pending, processing, completed, failed, partial
+
+  totalItems   Int      @default(0)
+  totalOutputs Int      @default(0)
+
+  error        String?
+
+  products     Product[]
+  assets       Asset[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  createdAt     DateTime @default(now())
+
+  jobId         String
+  job           GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  upc           String?
+  category      String
+  productType   String?   // top, bottom, dress, watch
+
+  gender        String?
+  size          String?
+
+  stylingPrompt String?
+
+  status        String    @default("ready")
+  error         String?
+
+  assets        Asset[]
+
+  @@index([jobId])
+  @@index([upc])
+  @@index([category])
+}
+
+model Asset {
+  id         String   @id @default(uuid())
+  createdAt  DateTime @default(now())
+
+  jobId      String
+  job        GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  assetType  String   // input, output, thumbnail, zip
+  shot       String?  // front, back, full_body, etc
+
+  fileName   String
+  r2Key      String
+  url        String?
+
+  mimeType   String?
+  sizeBytes  Int?
+
+  @@index([jobId])
+  @@index([productId])
+  @@index([assetType])
+  @@index([createdAt])
+}
+
+model GenerationSetting {
+  id     String @id @default(uuid())
+  jobId  String
+
+  key    String
+  value  String
+
+  @@index([jobId])
+}

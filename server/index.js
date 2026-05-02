@@ -1,10 +1,12 @@
-// server/index.js
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import path from "path";
+
 import generateRoutes from "./routes/generateRoutes.js";
 import downloadRoutes from "./routes/downloadRoutes.js";
+import jobRoutes from "./routes/jobRoutes.js";
+import generationsRoutes from "./routes/generationsRoutes.js";
 
 const app = express();
 
@@ -32,7 +34,14 @@ app.use(
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
 app.use("/outputs", express.static(path.join(process.cwd(), "outputs")));
+
+app.use("/api/generate", generateRoutes);
+app.use("/api", downloadRoutes);
+app.use("/api/download", downloadRoutes);
+app.use("/api/jobs", jobRoutes);
+app.use("/api/generations", generationsRoutes);
 
 app.get("/", (_req, res) => {
   res.send("Syntax Studio server running");
@@ -41,9 +50,6 @@ app.get("/", (_req, res) => {
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
-
-app.use("/api", generateRoutes);
-app.use("/api", downloadRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error("Server error:", err);

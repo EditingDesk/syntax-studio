@@ -8,10 +8,10 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 20 * 1024 * 1024,
-    files: 5,
+    files: 25,
   },
 });
 
-router.post("/generate", upload.array("images", 5), generateHandler);
+router.post("/", upload.array("images", 25), generateHandler);
 
 export default router;

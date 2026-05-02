@@ -1,42 +1,86 @@
 import express from "express";
-import path from "path";
-import fs from "fs/promises";
-import { fileURLToPath } from "url";
-import { createZipFromFolder } from "../services/zipService.js";
+import archiver from "archiver";
+import prisma from "../config/db.js";
+import { uploadBuffer, buildR2Key } from "../services/r2Service.js";
 
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const OUTPUT_DIR = path.join(__dirname, "../outputs");
-const ZIP_DIR = path.join(__dirname, "../zips");
-
-router.get("/download-all/:batchId", async (req, res) => {
+// POST /api/download-selected
+router.post("/download-selected", async (req, res) => {
   try {
-    const { batchId } = req.params;
+    const { assetIds } = req.body;
 
-    if (!batchId) {
+    if (!assetIds || !assetIds.length) {
       return res.status(400).json({
         success: false,
-        message: "Missing batchId",
+        message: "No assetIds provided",
       });
     }
 
-    const batchFolder = path.join(OUTPUT_DIR, batchId);
-    const zipPath = path.join(ZIP_DIR, `${batchId}.zip`);
+    // 1. get assets from DB
+    const assets = await prisma.asset.findMany({
+      where: {
+        id: { in: assetIds },
+        assetType: "output",
+        url: { not: null },
+      },
+    });
 
-    await fs.mkdir(ZIP_DIR, { recursive: true });
+    if (!assets.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No valid assets found",
+      });
+    }
 
-    await createZipFromFolder(batchFolder, zipPath);
+    // 2. create zip in memory
+    const archive = archiver("zip", { zlib: { level: 9 } });
 
-    return res.download(zipPath, `${batchId}.zip`);
+    const buffers = [];
+
+    archive.on("data", (data) => buffers.push(data));
+
+    archive.on("error", (err) => {
+      throw err;
+    });
+
+    for (const asset of assets) {
+      const response = await fetch(asset.url);
+      const arrayBuffer = await response.arrayBuffer();
+
+      archive.append(Buffer.from(arrayBuffer), {
+        name: asset.fileName || `${asset.id}.jpg`,
+      });
+    }
+
+    await archive.finalize();
+
+    const zipBuffer = Buffer.concat(buffers);
+
+    // 3. upload ZIP to R2
+    const zipKey = buildR2Key(
+      "zips",
+      `download_${Date.now()}.zip`
+    );
+
+    const upload = await uploadBuffer({
+      key: zipKey,
+      buffer: zipBuffer,
+      contentType: "application/zip",
+    });
+
+    // 4. return URL
+    return res.json({
+      success: true,
+      url: upload.url,
+    });
+
   } catch (error) {
-    console.error("Download ZIP error:", error);
+    console.error("ZIP error:", error);
 
     return res.status(500).json({
       success: false,
-      message: error.message || "ZIP download failed",
+      message: error.message,
     });
   }
 });

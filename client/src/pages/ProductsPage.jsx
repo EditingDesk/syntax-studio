@@ -1,7 +1,7 @@
 // client/src/pages/ProductsPage.jsx
 
 import Lightbox from "../components/Lightbox";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   UploadCloud,
   Shirt,
@@ -71,6 +71,7 @@ function autoDetectWatchShot(fileName = "") {
 }
 
 export default function ProductsPage() {
+  const fileInputRef = useRef(null);
   const templates = useMemo(() => categoryTemplates || {}, []);
   const categoryKeys = Object.keys(templates);
 
@@ -91,6 +92,7 @@ export default function ProductsPage() {
 
   const [files, setFiles] = useState([]);
   const [currentBatchId, setCurrentBatchId] = useState(null);
+  const [currentJobId, setCurrentJobId] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
 
   const [processingOptions, setProcessingOptions] = useState({
@@ -116,17 +118,14 @@ export default function ProductsPage() {
     return `${API_BASE}${url}`;
   };
 
-  const downloadImage = async (img) => {
+  const downloadImage = async (imageUrl, fileName = "syntax-image.jpg") => {
     try {
-      const fileUrl = getImageUrl(img.url);
-
-      const response = await fetch(fileUrl, {
-        method: "GET",
+      const response = await fetch(imageUrl, {
         mode: "cors",
       });
 
-      if (!response.ok && response.status !== 304) {
-        throw new Error(`Download failed: ${response.status}`);
+      if (!response.ok) {
+        throw new Error("Image download failed");
       }
 
       const blob = await response.blob();
@@ -134,26 +133,40 @@ export default function ProductsPage() {
 
       const link = document.createElement("a");
       link.href = blobUrl;
-      link.download = img.fileName || `${img.shot}.jpg`;
-
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
 
-      link.remove();
+      document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error("Download failed:", error);
-      alert("Download failed. Check backend CORS/static output settings.");
+
+      window.open(imageUrl, "_blank");
     }
   };
 
-  const downloadAllImages = () => {
-    if (!currentBatchId) {
-      alert("No batch found to download.");
+  const downloadAllImages = async () => {
+    const assetIds = generatedImages.map((img) => img.id).filter(Boolean);
+
+    if (!assetIds.length) {
+      alert("No generated assets found to download.");
       return;
     }
 
-    window.location.href = `${API_BASE}/api/download-all/${currentBatchId}`;
+    const res = await fetch(`${API_BASE}/api/download/download-selected`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ assetIds }),
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      window.open(data.url, "_blank");
+    }
   };
 
   const template = templates[selectedCategory] || {};
@@ -201,8 +214,8 @@ export default function ProductsPage() {
       ? safeTemplateName
       : `${safeTemplateName} › ${selectedSubCategory}`;
 
-  const handleFiles = (event) => {
-    const uploaded = Array.from(event.target.files || []).map((file) => ({
+  const handleFiles = (fileList) => {
+    const uploaded = Array.from(fileList || []).map((file) => ({
       file,
       name: file.name,
       preview: URL.createObjectURL(file),
@@ -211,6 +224,15 @@ export default function ProductsPage() {
 
     setFiles(uploaded);
     setGeneratedImages([]);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    handleFiles(event.dataTransfer.files);
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
   };
 
   const toggleShot = (shotId) => {
@@ -246,6 +268,7 @@ export default function ProductsPage() {
       setGenerating(true);
       setGeneratedImages([]);
       setCurrentBatchId(null);
+      setCurrentJobId(null);
 
       const formData = new FormData();
       const uploadedImages = files;
@@ -282,6 +305,7 @@ export default function ProductsPage() {
       }
 
       setCurrentBatchId(result.batchId || null);
+      setCurrentJobId(result.jobId || null);
       setGeneratedImages(result.results || []);
     } catch (err) {
       console.error("ProductsPage generate request failed:", err);
@@ -295,6 +319,50 @@ export default function ProductsPage() {
       setGenerating(false);
     }
   };
+
+  function ImageCard(image) {
+    const previewUrl = getImageUrl(image.url);
+
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div
+          onClick={() =>
+            setLightboxImage({
+              ...image,
+              type: "generated",
+              previewUrl,
+            })
+          }
+          className="aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-xl bg-[#F1F1F1]"
+        >
+          <img
+            src={previewUrl}
+            alt={image.shot}
+            className="h-full w-full object-contain"
+          />
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <p className="truncate text-sm font-bold capitalize text-black">
+            {image.shot}
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              downloadImage(
+                image.url,
+                image.fileName || "syntax-image.jpg"
+              )
+            }
+            className="rounded-lg bg-black px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"
+          >
+            Download
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -542,7 +610,20 @@ export default function ProductsPage() {
         </div>
 
         <div className="space-y-5">
-          <label className="flex min-h-[210px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm hover:bg-slate-50">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            className="flex min-h-[210px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm hover:bg-slate-50"
+          >
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ecfee8] text-green-600">
               <UploadCloud size={32} />
             </div>
@@ -560,13 +641,15 @@ export default function ProductsPage() {
             </p>
 
             <input
+              ref={fileInputRef}
               type="file"
               multiple
               accept="image/*"
-              onChange={handleFiles}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => handleFiles(event.target.files)}
               className="hidden"
             />
-          </label>
+          </div>
 
           {files.length > 0 && (
             <div className="mt-6">
@@ -725,47 +808,9 @@ export default function ProductsPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                  {generatedImages.map((img) => {
-                    const previewUrl = getImageUrl(img.url);
-
-                    return (
-                      <div
-                        key={img.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
-                      >
-                        <div
-                          onClick={() =>
-                            setLightboxImage({
-                              ...img,
-                              type: "generated",
-                              previewUrl,
-                            })
-                          }
-                          className="aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-xl bg-[#F1F1F1]"
-                        >
-                          <img
-                            src={previewUrl}
-                            alt={img.shot}
-                            className="h-full w-full object-contain"
-                          />
-                        </div>
-
-                        <div className="mt-3 flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-bold capitalize text-black">
-                            {img.shot}
-                          </p>
-
-                          <button
-                            type="button"
-                            onClick={() => downloadImage(img)}
-                            className="rounded-lg bg-black px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"
-                          >
-                            Download
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {generatedImages.map((img) => (
+                    <ImageCard key={img.url} {...img} />
+                  ))}
             </div>
             </div>
           )}
@@ -898,7 +943,15 @@ export default function ProductsPage() {
       <Lightbox
         image={lightboxImage}
         onClose={() => setLightboxImage(null)}
-        onDownload={lightboxImage?.type === "generated" ? downloadImage : null}
+        onDownload={
+  lightboxImage?.type === "generated"
+    ? () =>
+        downloadImage(
+          lightboxImage.url,
+          lightboxImage.fileName || "syntax-image.jpg"
+        )
+    : null
+}
       />
     </div>
   );

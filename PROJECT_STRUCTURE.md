@@ -1,261 +1,190 @@
-# SYNTAX_STUDIO - Project Structure Map
+# Syntax Studio - Project Structure
 
-## 📋 Project Overview
-**SYNTAX_STUDIO** is a full-stack web application that generates product descriptions and content (primarily for watches and other items) using Google Gemini AI. It processes images, manages generation queues, and provides a user-friendly interface for batch processing.
+Syntax Studio is a full-stack product image generation app. The React client lets users upload product images, generate enhanced product shots, review recent generations, preview images, and download outputs. The Express server handles uploads, Gemini image generation, Sharp image processing, Cloudflare R2 storage, and generation job metadata.
 
----
+## Directory Structure
 
-## 🏗️ Directory Structure
-
-```
-SYNTAX_STUDIO/
-├── README.md                          # Project documentation
-├── .git/                              # Git repository
-├── .gitignore                         # Git ignore rules
-│
-├── CLIENT/                            # Frontend (React + Vite + TailwindCSS)
-│   ├── package.json                   # Client dependencies & scripts
-│   ├── package-lock.json
-│   ├── node_modules/
-│   ├── dist/                          # Build output
-│   │
-│   ├── vite.config.js                 # Vite bundler configuration
-│   ├── tailwind.config.js             # TailwindCSS configuration
-│   ├── postcss.config.js              # PostCSS configuration
-│   ├── index.html                     # HTML entry point
-│   │
-│   ├── src/                           # Source code
-│   │   ├── main.jsx                   # React entry point
-│   │   ├── App.jsx                    # Main App component
-│   │   ├── index.css                  # Global styles
-│   │   │
-│   │   ├── pages/
-│   │   │   └── GeneratorPage.jsx      # Main generator page component
-│   │   │
-│   │   ├── services/
-│   │   │   ├── api.js                 # API client for backend communication
-│   │   │   └── promptBuilder.js       # Prompt construction utilities
-│   │   │
-│   │   └── config/
-│   │       └── categoryTemplates.js   # Category templates (shared config)
-│   │
-│   └── components/                    # Reusable React components
-│       ├── UploadSection.jsx          # File/image upload component
-│       ├── ResultGrid.jsx             # Display generated results
-│       ├── ProgressBar.jsx            # Progress tracking UI
-│       └── DownloadAllButton.jsx      # Batch download component
-│
-├── SERVER/                            # Backend (Node.js + Express)
-│   ├── package.json                   # Server dependencies & scripts
-│   ├── package-lock.json
-│   ├── node_modules/
-│   ├── .env                           # Environment variables (GEMINI_API_KEY)
-│   ├── index.js                       # Express server entry point
-│   │
-│   ├── routes/
-│   │   └── generateRoutes.js          # API endpoints for generation
-│   │
-│   ├── controllers/
-│   │   └── generateController.js      # Request handlers & business logic
-│   │
-│   ├── services/
-│   │   ├── geminiService.js           # Google Gemini AI integration
-│   │   ├── generationService.js       # Core generation logic
-│   │   ├── imageProcessor.js          # Image processing (using Sharp)
-│   │   ├── promptBuilder.js           # Dynamic prompt generation
-│   │   ├── queueManager.js            # Queue management for concurrent requests
-│   │   └── zipService.js              # ZIP file creation for downloads
-│   │
-│   ├── config/
-│   │   └── categoryTemplates.js       # Product category templates & rules
-│   │
-│   ├── outputs/                       # Generated output files (temp storage)
-│   ├── temp/                          # Temporary file storage
-│   └── controllers/
-│       └── generateController.js      # Generation request handlers
-│
-└── node_modules/                      # Root node_modules (if applicable)
+```text
+Syntax_Studio/
+|-- PROJECT_STRUCTURE.md
+|-- favicon.ico
+|-- client/
+|   |-- package.json
+|   |-- vite.config.js
+|   |-- tailwind.config.js
+|   |-- index.html
+|   |-- dist/                         # Production build output
+|   |-- src/
+|   |   |-- main.jsx                   # React entry point
+|   |   |-- App.jsx                    # App shell and routing
+|   |   |-- index.css                  # Global Tailwind styles
+|   |   |-- components/
+|   |   |   |-- Lightbox.jsx
+|   |   |   `-- MainTemplate.jsx
+|   |   |-- config/
+|   |   |   `-- categoryTemplates.js
+|   |   |-- mock/
+|   |   |   `-- dashboardData.js
+|   |   |-- pages/
+|   |   |   |-- DashboardPage.jsx
+|   |   |   |-- GenerationsPage.jsx     # Recent generated images and ZIP download
+|   |   |   |-- GeneratorPage.jsx
+|   |   |   |-- ModelsPage.jsx
+|   |   |   |-- ProductsPage.jsx        # Main product image generation flow
+|   |   |   |-- SettingsPage.jsx
+|   |   |   `-- ToolsPage.jsx
+|   |   `-- services/
+|   |       |-- api.js                  # Backend API helpers
+|   |       `-- promptBuilder.js
+|   `-- components/                    # Legacy component directory
+|       |-- DownloadAllButton.jsx
+|       |-- ProgressBar.jsx
+|       |-- ResultGrid.jsx
+|       `-- UploadSection.jsx
+|
+`-- server/
+    |-- package.json
+    |-- index.js                       # Express entry point
+    |-- prisma.config.ts
+    |-- .gitignore
+    |-- config/
+    |   |-- categoryTemplates.js
+    |   `-- db.js                      # Prisma/database client setup
+    |-- controllers/
+    |   `-- generateController.js      # Generation request handler
+    |-- prisma/
+    |   |-- schema.prisma
+    |   `-- migrations/
+    |-- routes/
+    |   |-- downloadRoutes.js          # GET /api/download-all/:batchId
+    |   |-- generateRoutes.js          # POST /api/generate
+    |   |-- generationHistoryRoutes.js # GET /api/generations
+    |   `-- jobRoutes.js               # GET /api/jobs/:jobId
+    |-- services/
+    |   |-- backgroundRemoval.js
+    |   |-- geminiService.js
+    |   |-- generationService.js
+    |   |-- imageProcessing.js         # Sharp processing helpers
+    |   |-- jobService.js              # Job and asset persistence
+    |   |-- promptBuilder.js
+    |   |-- queueManager.js
+    |   |-- r2Service.js               # Cloudflare R2/S3-compatible storage
+    |   `-- zipService.js
+    `-- test-r2.js
 ```
 
----
+## Current Flow
 
-## 🔄 Data Flow & Architecture
+1. `ProductsPage.jsx` collects uploaded product images and generation settings.
+2. The client posts `multipart/form-data` to `POST /api/generate`.
+3. `generateRoutes.js` validates uploads with `multer` and calls `generateHandler`.
+4. `generateController.js` creates a generation job, uploads input assets to R2, calls Gemini, optionally removes background, processes the image with Sharp, uploads output assets to R2, and stores asset metadata.
+5. The API returns `jobId` and `results`, where each result includes `shot`, `url`, `fileName`, and `originalName`.
+6. `ProductsPage.jsx` renders generated images with `ImageCard` and downloads files using the returned `fileName`.
+7. `GenerationsPage.jsx` loads recent generated images through `getGenerations(days)` in `client/src/services/api.js`.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        CLIENT SIDE                              │
-│                                                                 │
-│  User Interface (React + TailwindCSS)                          │
-│         ↓                                                       │
-│  ┌─────────────────────────────────────┐                       │
-│  │ GeneratorPage.jsx                   │                       │
-│  │ ├─ UploadSection (image upload)    │                       │
-│  │ ├─ ProgressBar (status tracking)   │                       │
-│  │ ├─ ResultGrid (display results)    │                       │
-│  │ └─ DownloadAllButton (batch DL)    │                       │
-│  └─────────────────────────────────────┘                       │
-│         ↓                                                       │
-│  api.js (HTTP Requests)                                        │
-│         ↓                                                       │
-└─────────────────────────────────────────────────────────────────┘
-                       ↓ HTTP/JSON
-┌─────────────────────────────────────────────────────────────────┐
-│                       SERVER SIDE                               │
-│                                                                 │
-│  Express.js + CORS                                             │
-│         ↓                                                       │
-│  generateRoutes.js                                             │
-│         ↓                                                       │
-│  generateController.js (Request Handler)                       │
-│         ↓                                                       │
-│  ┌─────────────────────────────────────┐                       │
-│  │ generationService.js                │                       │
-│  │ (Main orchestrator)                 │                       │
-│  └─────────────────────────────────────┘                       │
-│    ├─ imageProcessor.js                                        │
-│    │   (Sharp: resize, optimize)       → temp/                 │
-│    │                                                           │
-│    ├─ promptBuilder.js                                         │
-│    │   (Generate AI prompts)                                   │
-│    │                                                           │
-│    ├─ geminiService.js                                         │
-│    │   (Google Gemini API calls) → ┌─────────────────────┐   │
-│    │                              │ Google Gemini AI    │   │
-│    │                              └─────────────────────┘   │
-│    │                                                           │
-│    ├─ queueManager.js                                         │
-│    │   (p-queue: concurrent request limit)                    │
-│    │                                                           │
-│    └─ zipService.js                                           │
-│        (Create ZIP files) → outputs/                          │
-│                                                               │
-│  config/categoryTemplates.js                                  │
-│  (Product categories & AI instructions)                       │
-│                                                               │
-└─────────────────────────────────────────────────────────────────┘
-```
+## API Endpoints
 
----
+| Method | Endpoint | Route file | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | `server/index.js` | Health check |
+| `POST` | `/api/generate` | `server/routes/generateRoutes.js` | Generate product images |
+| `GET` | `/api/generations?days=7` | `server/routes/generationHistoryRoutes.js` | List recent generated images from `outputs/` |
+| `GET` | `/api/jobs/:jobId` | `server/routes/jobRoutes.js` | Fetch generation job metadata |
+| `GET` | `/api/download-all/:batchId` | `server/routes/downloadRoutes.js` | ZIP download for legacy local output batches |
 
-## 📦 Key Dependencies
+## Key Files
 
 ### Client
-- **react** (^18.2.0) - UI framework
-- **vite** (^5.0.0) - Fast bundler
-- **tailwindcss** (^3.4.0) - Styling
-- **jszip** (^3.10.1) - ZIP file handling
-- **lucide-react** (^0.344.0) - Icon library
-- **p-queue** (^9.1.2) - Queue management
+
+- `client/src/pages/ProductsPage.jsx`: Main product generation page, upload flow, generated image cards, lightbox, and single-image download.
+- `client/src/pages/GenerationsPage.jsx`: Recent generations browser and client-side ZIP export.
+- `client/src/services/api.js`: `generateImages(payload)` and `getGenerations(days)` backend helpers.
+- `client/src/config/categoryTemplates.js`: Product category configuration used by the UI.
 
 ### Server
-- **express** (^4.19.2) - Web framework
-- **@google/genai** (^0.3.0) - Gemini AI API
-- **sharp** (^0.33.5) - Image processing
-- **multer** (^1.4.5-lts.1) - File upload handling
-- **cors** (^2.8.5) - Cross-origin support
-- **dotenv** (^16.4.5) - Environment variables
-- **p-queue** (^9.2.0) - Queue management
-- **nodemon** (^3.1.10) - Dev auto-reload
 
----
+- `server/index.js`: Express app setup, CORS, static `/outputs`, and route mounting.
+- `server/controllers/generateController.js`: Main generation orchestration.
+- `server/services/imageProcessing.js`: Sharp helpers, including in-memory `processGeminiBuffer`.
+- `server/services/geminiService.js`: Google Gemini image generation integration.
+- `server/services/r2Service.js`: R2 upload/key helpers.
+- `server/services/jobService.js`: Generation job and asset persistence.
+- `server/config/db.js`: Database client setup.
+- `server/prisma/schema.prisma`: Database schema.
 
-## 🔧 Configuration Files
+## Storage
 
-| File | Purpose |
-|------|---------|
-| `.env` | Server environment (API keys) |
-| `vite.config.js` | Frontend build configuration |
-| `tailwind.config.js` | TailwindCSS styling rules |
-| `postcss.config.js` | CSS processing |
-| `categoryTemplates.js` | Product categories & AI prompts (shared) |
+| Storage | Purpose |
+| --- | --- |
+| Cloudflare R2 | Primary input/output image storage for generated assets |
+| Database via Prisma | Generation jobs and asset metadata |
+| `server/outputs/` | Legacy/local generated image and ZIP source directory |
+| `server/zips/` | ZIP files created by `downloadRoutes.js` |
+| `client/dist/` | Production frontend build |
 
----
+## Environment
 
-## 📡 API Endpoints
+Typical server environment variables include:
 
-Located in: [server/routes/generateRoutes.js](server/routes/generateRoutes.js)
+- `GEMINI_API_KEY`
+- Database connection variables used by Prisma
+- R2/S3-compatible credentials and bucket configuration
 
-| Method | Endpoint | Handler | Purpose |
-|--------|----------|---------|---------|
-| POST | `/api/generate` | generateController | Main generation endpoint |
-| GET/POST | `/api/status` | generateController | Queue/generation status |
-| GET | `/api/download/:id` | generateController | Download generated files |
+Typical client environment variables include:
 
----
+- `VITE_API_BASE_URL`
+- `VITE_API_URL`
 
-## 🔑 Core Services
+If neither client API variable is set, `client/src/services/api.js` falls back to `http://localhost:3001`.
 
-### Frontend Services
-- **api.js**: HTTP client wrapper for backend communication
-- **promptBuilder.js**: Client-side prompt utilities
-
-### Backend Services
-- **geminiService.js**: Handles Gemini AI API integration
-- **generationService.js**: Orchestrates the generation workflow
-- **imageProcessor.js**: Image resizing/optimization (Sharp)
-- **promptBuilder.js**: Dynamic prompt template generation
-- **queueManager.js**: Request queue with concurrency limits (p-queue)
-- **zipService.js**: Creates downloadable ZIP files
-
----
-
-## 📂 File Storage
-
-| Directory | Purpose |
-|-----------|---------|
-| `server/temp/` | Temporary processed images |
-| `server/outputs/` | Generated ZIP files ready for download |
-| `client/dist/` | Compiled frontend (production build) |
-
----
-
-## 🚀 Scripts
+## Dependencies
 
 ### Client
+
+- `react`, `react-dom`, `react-router-dom`
+- `vite`
+- `tailwindcss`
+- `lucide-react`
+- `jszip`
+- `p-queue`
+
+### Server
+
+- `express`
+- `multer`
+- `cors`
+- `dotenv`
+- `@google/genai`
+- `sharp`
+- `@imgly/background-removal-node`
+- `@aws-sdk/client-s3`
+- `@aws-sdk/s3-request-presigner`
+- `@prisma/client`, `prisma`
+- `archiver`
+- `p-queue`
+- `uuid`
+
+## Scripts
+
+### Client
+
 ```bash
-npm run dev      # Start dev server (Vite)
-npm run build    # Production build
-npm run preview  # Preview production build
-npm start        # Serve production build on 8080
+npm run dev
+npm run build
+npm run preview
+npm start
 ```
 
 ### Server
+
 ```bash
-npm start        # Run server
-npm run dev      # Run with nodemon (auto-reload)
+npm run dev
+npm start
 ```
 
----
+## Notes
 
-## 🔄 Typical Workflow
-
-1. **User** uploads images via UploadSection component
-2. **Frontend** sends images to `/api/generate` with category & settings
-3. **Server** processes:
-   - Resizes/optimizes images (imageProcessor)
-   - Generates AI prompts (promptBuilder)
-   - Queues requests (queueManager)
-   - Calls Gemini API for content generation (geminiService)
-4. **Results** returned to client via ResultGrid
-5. **User** downloads all results as ZIP file
-6. **Files** cleaned from temp/outputs directories
-
----
-
-## 🎯 Project Purpose
-
-Generate high-quality product descriptions and content for e-commerce items (watches, apparel, etc.) using AI, with batch processing capabilities and concurrent request management.
-
----
-
-## 📌 Key Features
-
-✅ Batch image upload  
-✅ Google Gemini AI integration  
-✅ Queue management with concurrency limits  
-✅ Image processing & optimization  
-✅ Batch download as ZIP  
-✅ Progress tracking  
-✅ Multiple product categories  
-✅ CORS-enabled API  
-
+- `client/` also contains older top-level `components/`, `pages/`, and `services/` directories. The active app code is under `client/src/`.
+- `downloadRoutes.js` still supports legacy local batch ZIP downloads. Current generated result objects are R2-backed and include `fileName` for direct single-image downloads.
+- `generationHistoryRoutes.js` scans local `outputs/`; R2-backed history may need a separate database-backed endpoint if local output history is retired.

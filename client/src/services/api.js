@@ -2,7 +2,8 @@
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL;
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:3001";
 
 if (!API_BASE) {
   throw new Error("Missing VITE_API_BASE_URL. Check Railway environment variables.");
@@ -58,4 +59,21 @@ export async function generateImages(payload) {
       `Unable to connect to the generation server. Backend URL used: ${API_BASE}`
     );
   }
+}
+
+export async function getGenerations(days = 7) {
+  const res = await fetch(`${API_BASE}/api/generations?days=${days}`);
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to load generations");
+  }
+
+  return {
+    ...data,
+    images: data.images.map((img) => ({
+      ...img,
+      url: img.url.startsWith("http") ? img.url : `${API_BASE}${img.url}`,
+    })),
+  };
 }

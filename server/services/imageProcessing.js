@@ -10,6 +10,25 @@ const JPG_QUALITY = 95;
 const CONTENT_WIDTH = OUTPUT_WIDTH;
 const CONTENT_HEIGHT = OUTPUT_HEIGHT - TOP_BOTTOM_MARGIN * 2;
 
+export async function processGeminiBuffer(inputBuffer, options = {}) {
+  const {
+    width = 1644,
+    height = 2464,
+    background = "#F1F1F1",
+    quality = 95,
+  } = options;
+
+  const processed = await sharp(inputBuffer)
+    .resize(width, height, {
+      fit: "contain",
+      background,
+    })
+    .jpeg({ quality })
+    .toBuffer();
+
+  return processed;
+}
+
 /**
  * Final Syntax Studio output processor
  * Output:
